@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: roms-api
+  datasource:
+    url: jdbc:h2:mem:roms;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+
+server:
+  port: ${PORT:8080}
+
+app:
+  cors:
+    allowed-origin: ${FRONTEND_URL:http://localhost:5173}
