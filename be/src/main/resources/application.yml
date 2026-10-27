@@ -22,3 +22,8 @@ server:
 app:
   cors:
     allowed-origin: ${FRONTEND_URL:http://localhost:5173}
+  auth:
+    jwt-secret: ${AUTH_JWT_SECRET:}
+    issuer: ${AUTH_JWT_ISSUER:roms-api}
+    bootstrap-username: ${AUTH_BOOTSTRAP_USERNAME:}
+    bootstrap-password: ${AUTH_BOOTSTRAP_PASSWORD:}

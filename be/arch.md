@@ -1,445 +1,127 @@
-# ROMS — Kiến trúc đơn giản cho bài tập Quản lý dự án phần mềm
+# ROMS — Kiến trúc backend hiện tại
 
-> Mục tiêu của dự án là xây dựng một ứng dụng web nhỏ, dễ hiểu, dễ demo và đáp ứng các yêu cầu chính trong SRS. Không hướng tới hệ thống thương mại hoặc kiến trúc phức tạp.
+Tài liệu phản ánh source hiện tại, không phải cam kết rằng toàn bộ workflow SRS đã hoàn thành. Backend là một ứng dụng Spring Boot monolith, dùng controller, service và Spring Data JPA; không cần bổ sung service hay hạ tầng mới để mô tả implementation này.
 
-## 1. Phạm vi đề xuất
-
-Quy trình chính:
+## 1. Tổng quan và trạng thái
 
 ```text
-Phục vụ tạo order → Bếp xử lý → Phục vụ mang món → Thu ngân thanh toán
+Client (frontend xác thực chưa được triển khai)
+    ├── REST /api/v1 + Bearer JWT
+    └── WebSocket /ws + STOMP
+                 ↓
+Spring Boot: auth, table, menu, order, payment, realtime
+                 ↓
+Flyway + JPA → H2 in-memory mặc định / PostgreSQL profile prod
 ```
 
-Phạm vi V1.0:
+- **Đã có:** đăng nhập username/password, RBAC, quản lý tài khoản bởi admin; quản lý bàn và menu; tạo và gửi order trong cùng một request; xử lý món, yêu cầu thanh toán, xem trước và thanh toán tiền mặt; thông báo realtime.
+- **Chưa có:** frontend đăng nhập/role; PIN, logout, refresh token, MFA hay rate limiting; thêm/hủy món sau khi tạo order, chuyển bàn, API báo cáo, in hóa đơn và tích hợp thanh toán online. Màn hình bếp/thu ngân và trải nghiệm reconnect của client cũng chưa được triển khai trong frontend.
+- Không có package kitchen hay report riêng: xử lý bếp nằm trong `order`; hàng đợi thu ngân và thanh toán nằm trong `payment`/`order`.
 
-- Một nhà hàng duy nhất.
-- Khoảng 15–20 bàn.
-- Một backend API duy nhất.
-- Một database PostgreSQL.
-- Một frontend responsive, hiển thị giao diện theo role.
-- Realtime đơn giản bằng WebSocket hoặc Socket.IO.
-- Không làm microservices, Redis, Kubernetes, message broker hoặc offline-first.
-- Không tích hợp VNPay/Momo và không quản lý kho nguyên liệu chi tiết.
-
-### Công nghệ chính
-
-- Frontend: **React**.
-- Backend: **Spring Boot**.
-- Database: **PostgreSQL**.
-- Real-time: **WebSocket**.
-- Quản lý mã nguồn: **Git và GitHub**.
-- Frontend deployment: **Vercel**.
-- Backend deployment: **Render**.
-
-### Workflow nghiệm thu chính
-
-Đây là workflow cần được ưu tiên trong mọi quyết định về scope, schedule và chất lượng:
-
-```text
-Chọn bàn → Chọn món → Gửi order → Bếp nhận order →
-Bếp cập nhật trạng thái → Phục vụ thấy món hoàn thành →
-Thu ngân tính tiền → Hoàn tất thanh toán
-```
-
-## 2. Kiến trúc tổng thể
-
-Chọn kiến trúc **monolithic 3 lớp** vì phù hợp với bài tập và nhóm nhỏ:
-
-```text
-┌─────────────────────────────────────┐
-│ Frontend Web                        │
-│ Waiter | Kitchen | Cashier | Admin  │
-└───────────────┬─────────────────────┘
-                │ REST API + WebSocket
-┌───────────────▼─────────────────────┐
-│ Backend Application                 │
-│ Auth | Menu | Tables | Orders       │
-│ Kitchen | Payment | Report          │
-└───────────────┬─────────────────────┘
-                │ SQL
-┌───────────────▼─────────────────────┐
-│ PostgreSQL                          │
-└─────────────────────────────────────┘
-```
-
-### Ba lớp
-
-1. **Presentation:** route/controller, nhận request và trả response.
-2. **Business:** xử lý order, trạng thái món, tính tiền và phân quyền.
-3. **Data access:** model, ORM/query và migration database.
-
-Chỉ cần một backend chạy trên Render, không tách thành nhiều service.
-
-## 3. Cấu trúc source code Spring Boot
-
-Backend sử dụng cấu trúc project Maven chuẩn của Spring Boot. Package gốc chứa class khởi động phải nằm ở cấp cao nhất để Spring Boot tự động scan các package con.
+## 2. Cấu trúc source thực tế
 
 ```text
 be/
 ├── pom.xml
-├── README.md
-├── .gitignore
-├── .env.example
-└── src/
-    ├── main/
-    │   ├── java/
-    │   │   └── com/roms/
-    │   │       ├── RomApplication.java
-    │   │       ├── config/
-    │   │       │   ├── SecurityConfig.java
-    │   │       │   ├── WebSocketConfig.java
-    │   │       │   └── CorsConfig.java
-    │   │       ├── common/
-    │   │       │   ├── exception/
-    │   │       │   ├── response/
-    │   │       │   └── validation/
-    │   │       ├── auth/
-    │   │       │   ├── AuthController.java
-    │   │       │   ├── AuthService.java
-    │   │       │   ├── AuthRequest.java
-    │   │       │   └── AuthResponse.java
-    │   │       ├── user/
-    │   │       │   ├── User.java
-    │   │       │   ├── UserRepository.java
-    │   │       │   └── UserService.java
-    │   │       ├── table/
-    │   │       │   ├── RestaurantTable.java
-    │   │       │   ├── TableRepository.java
-    │   │       │   ├── TableController.java
-    │   │       │   └── TableService.java
-    │   │       ├── menu/
-    │   │       │   ├── Category.java
-    │   │       │   ├── MenuItem.java
-    │   │       │   ├── CategoryRepository.java
-    │   │       │   ├── MenuItemRepository.java
-    │   │       │   ├── MenuController.java
-    │   │       │   └── MenuService.java
-    │   │       ├── order/
-    │   │       │   ├── Order.java
-    │   │       │   ├── OrderItem.java
-    │   │       │   ├── OrderStatus.java
-    │   │       │   ├── OrderItemStatus.java
-    │   │       │   ├── OrderRepository.java
-    │   │       │   ├── OrderController.java
-    │   │       │   └── OrderService.java
-    │   │       ├── kitchen/
-    │   │       │   ├── KitchenController.java
-    │   │       │   └── KitchenService.java
-    │   │       ├── payment/
-    │   │       │   ├── Invoice.java
-    │   │       │   ├── Payment.java
-    │   │       │   ├── PaymentRepository.java
-    │   │       │   ├── PaymentController.java
-    │   │       │   └── PaymentService.java
-    │   │       ├── report/
-    │   │       │   ├── ReportController.java
-    │   │       │   └── ReportService.java
-    │   │       └── realtime/
-    │   │           └── RealtimeEventService.java
-    │   └── resources/
-    │       ├── application.yml
-    │       ├── application-dev.yml
-    │       ├── application-prod.yml
-    │       └── db/
-    │           └── migration/
-    └── test/
-        ├── java/
-        │   └── com/roms/
-        │       ├── order/OrderServiceTest.java
-        │       ├── payment/PaymentServiceTest.java
-        │       └── integration/OrderFlowIntegrationTest.java
-        └── resources/
-            └── application-test.yml
+├── src/main/java/com/roms/
+│   ├── RomApplication.java
+│   ├── auth/
+│   │   ├── AccountService.java  AppUser.java  AuthController.java
+│   │   ├── Role.java  SecurityConfig.java  StompSecurity.java
+│   │   └── TokenService.java  UserRepository.java
+│   ├── common/HealthController.java
+│   ├── config/WebConfig.java  WebSocketConfig.java
+│   ├── menu/
+│   │   ├── Category.java  CategoryRepository.java  MenuItem.java
+│   │   └── MenuItemRepository.java  MenuController.java  MenuService.java
+│   ├── order/
+│   │   ├── RestaurantOrder.java  OrderItem.java  OrderStatus.java  OrderItemStatus.java
+│   │   ├── OrderRepository.java  OrderItemRepository.java  OrderResponse.java
+│   │   └── OrderController.java  OrderService.java
+│   ├── payment/
+│   │   ├── Invoice.java  InvoiceRepository.java  Payment.java  PaymentRepository.java
+│   │   └── PaymentMethod.java  PaymentController.java  PaymentService.java
+│   ├── realtime/RealtimeEventService.java
+│   └── table/RestaurantTable.java  TableStatus.java  TableRepository.java  TableController.java  TableService.java
+├── src/main/resources/
+│   ├── application.yml  application-prod.yml
+│   └── db/migration/V1__create_core_tables.sql  V2__auth.sql
+└── src/test/
+    ├── java/com/roms/ApiSmokeTest.java  AuthTestBase.java  BusinessFlowTest.java
+    │                   RealtimeEventServiceTest.java  SecurityIntegrationTest.java
+    └── resources/application.properties
 ```
 
-### Quy tắc tổ chức package
+Java 21, Spring Boot 3.5.6, Spring Security, JPA, Flyway và STOMP/WebSocket được cấu hình trong Maven. `RomApplication` ở package gốc `com.roms`. Controller gọi service và repository; một số request/response là record lồng trong controller/service.
 
-- `RomApplication.java` là class có `@SpringBootApplication`, đặt tại package `com.roms`.
-- Các package chức năng (`auth`, `menu`, `order`, `kitchen`, `payment`...) nằm bên dưới `com.roms` để được component scan tự động.
-- `Controller` chỉ nhận request, validate DTO và gọi `Service`.
-- `Service` chứa business logic và transaction.
-- `Repository` kế thừa Spring Data JPA repository để truy cập database.
-- `Entity` ánh xạ với bảng PostgreSQL; không trả trực tiếp entity ra API nếu cần kiểm soát response.
-- `DTO` dùng cho request/response, tránh phụ thuộc trực tiếp vào cấu trúc entity.
-- `config` chứa cấu hình Spring Security, CORS, WebSocket và các bean dùng chung.
-- `common` chứa exception handler, response format và validation dùng chung; không đặt business logic vào đây.
-- `resources` chứa cấu hình theo môi trường và database migration.
-- Test giữ đúng package tương ứng với code trong `src/main/java`.
+## 3. Auth và RBAC hiện có
 
-### Ví dụ luồng xử lý request
+- Bốn role: `WAITER`, `KITCHEN`, `CASHIER`, `ADMIN`. `POST /api/v1/auth/login` nhận username/password; username được tra cứu không phân biệt chữ hoa/thường. Response có `accessToken`, `tokenType: Bearer`, `expiresIn: 28800`.
+- Password lưu dạng BCrypt. Tài khoản mới/reset yêu cầu password không rỗng, ít nhất 12 ký tự và tối đa 72 byte UTF-8; username 3–64 ký tự ASCII chữ/số/dấu `.`, `_`, `-`, được chuẩn hóa thành chữ thường và là duy nhất.
+- JWT HS256 có issuer, subject là user ID, role, phiên bản token, thời điểm phát hành và hết hạn sau **8 giờ**. Mỗi lần xác thực kiểm tra chữ ký, issuer, claims, thời hạn và trạng thái/role/phiên bản tài khoản trong DB. REST dùng `Authorization: Bearer <token>`; cấu hình stateless, CSRF tắt.
+- Khi username, role hoặc active thực sự thay đổi, hay password được reset, `token_version` tăng và token cũ không còn hợp lệ. Tài khoản bị tắt không thể đăng nhập; bật lại cũng không khôi phục token cũ. Không có endpoint logout/refresh hoặc cơ chế thu hồi token theo từng phiên.
+- Admin tạo, liệt kê, cập nhật username/role/active và reset password; không thể hạ quyền hoặc vô hiệu hóa admin đang hoạt động cuối cùng. `auth_guard` được khóa trong transaction cho các thay đổi tài khoản và bootstrap.
+- Khi không có admin active, khởi động cần `AUTH_BOOTSTRAP_USERNAME` **và** `AUTH_BOOTSTRAP_PASSWORD` hợp lệ để tạo admin. Nếu một biến rỗng còn biến kia không rỗng thì khởi động thất bại; khi đã có admin active, bootstrap không đặt lại tài khoản.
 
-```text
-OrderController
-    → OrderService
-        → OrderRepository / MenuItemRepository
-        → PostgreSQL
-        → RealtimeEventService
-```
+### Biến cấu hình thực tế
 
-Không đặt business logic trực tiếp trong controller và không để frontend tự thay đổi trạng thái order mà không qua service/backend.
+| Biến | Ý nghĩa |
+|---|---|
+| `AUTH_JWT_SECRET` | Bắt buộc: Base64 giải mã thành ít nhất 32 byte; nên dùng byte ngẫu nhiên và giữ bí mật. |
+| `AUTH_JWT_ISSUER` | Issuer; mặc định `roms-api`, không được rỗng. |
+| `AUTH_BOOTSTRAP_USERNAME`, `AUTH_BOOTSTRAP_PASSWORD` | Cặp thông tin admin ban đầu như quy tắc trên; không commit giá trị thật. |
+| `FRONTEND_URL` | Origin duy nhất cho CORS `/api/**` và WebSocket; mặc định `http://localhost:5173`. |
+| `PORT` | Port HTTP, mặc định 8080. |
+| `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD` | Profile `prod`: JDBC URL PostgreSQL và thông tin kết nối; username/password mặc định rỗng. Profile mặc định dùng H2 in-memory. |
 
-## 4. Các module chức năng
+## 4. REST API và quyền thực tế
 
-### Auth và phân quyền
+Prefix `/api/v1`; bảng liệt kê endpoint **đã hiện thực**, `{id}` là UUID. Các request không khớp allowlist bị từ chối; request không có xác thực tới route được bảo vệ nhận 401, user đủ xác thực nhưng sai role nhận 403. `OPTIONS /**` được phép; HTTP GET `/ws` cho phép handshake nhưng STOMP vẫn phải xác thực. Một header Authorization sai cũng bị từ chối, kể cả trên route public.
 
-Các role:
+| Method và route | Role / truy cập |
+|---|---|
+| `GET /health` | Public |
+| `POST /auth/login` | Public |
+| `GET /users`, `POST /users`, `PUT /users/{id}`, `POST /users/{id}/reset-password` | ADMIN |
+| `GET /tables`, `GET /orders/{id}` | WAITER, ADMIN |
+| `GET /categories`, `GET /menu-items` | WAITER, KITCHEN, ADMIN |
+| `POST /orders`, `POST /orders/{id}/request-payment`, `POST /order-items/{id}/serve` | WAITER, ADMIN |
+| `GET /kitchen/queue`, `POST /kitchen/order-items/{id}/start`, `POST /kitchen/order-items/{id}/done` | KITCHEN, ADMIN |
+| `GET /cashier/payment-requests`, `GET /orders/{id}/invoice/preview`, `POST /orders/{id}/pay` | CASHIER, ADMIN |
+| `POST /tables`, `PATCH /tables/{id}`, `DELETE /tables/{id}` | ADMIN |
+| `POST /categories`, `PATCH /categories/{id}`, `DELETE /categories/{id}` | ADMIN |
+| `POST /menu-items`, `PATCH /menu-items/{id}`, `DELETE /menu-items/{id}`, `PATCH /menu-items/{id}/availability` | ADMIN (không phải KITCHEN) |
 
-- `WAITER`: phục vụ.
-- `KITCHEN`: bếp.
-- `CASHIER`: thu ngân.
-- `ADMIN`: quản lý.
+Không có `/auth/me`, `/auth/logout`, endpoint submit order riêng, lấy order hiện tại theo bàn, `/menu`, hay endpoint báo cáo. Không coi các route dự kiến đó là API đang hoạt động.
 
-Chức năng cần có:
+## 5. Nghiệp vụ hiện có và giới hạn
 
-- Đăng nhập bằng username/password hoặc PIN.
-- Đăng xuất.
-- Kiểm tra role ở backend.
-- Hash mật khẩu/PIN, không lưu plain text.
+- **Bàn:** tạo, xem bàn active, sửa tên/sức chứa, tắt mềm khi bàn `AVAILABLE`; chưa có API bật lại. Trạng thái gồm `AVAILABLE`, `OCCUPIED`, `READY_TO_SERVE`, `PAYMENT_REQUESTED`.
+- **Menu:** tạo, sửa, tắt mềm danh mục/món; chỉ admin thay đổi availability. `GET /menu-items?availableOnly=true` lọc món còn hàng; món hoặc danh mục bị tắt không xuất hiện và không thể đặt.
+- **Order:** `POST /orders` tạo và submit ngay, yêu cầu ít nhất một item hợp lệ, lưu snapshot tên và giá. Service từ chối order mới nếu bàn đã có order active; chưa chứng minh bảo đảm này khi request đồng thời. Bếp xử lý `PENDING → COOKING → DONE`, waiter chuyển `DONE → SERVED`. Bàn `READY_TO_SERVE` nếu có ít nhất một item `DONE`, ngược lại `OCCUPIED` trong quá trình xử lý.
+- **Trạng thái order:** `OPEN` là trạng thái khởi tạo nội bộ, sau tạo là `SUBMITTED`; cập nhật món tính `IN_PROGRESS`, `READY` khi mọi món DONE/SERVED, `SERVED` khi tất cả SERVED; tiếp theo `PAYMENT_REQUESTED → PAID`. Enum có `CLOSED` nhưng không có luồng chuyển sang trạng thái này. Hàng đợi bếp lấy order `SUBMITTED`/`IN_PROGRESS` theo thời gian gửi, không cưỡng chế FIFO khi thao tác.
+- **Thanh toán:** chỉ order `SERVED` mới yêu cầu thanh toán; preview tính các item `SERVED`, giảm giá là số tiền VND từ 0 đến tạm tính, VAT 8% trên số sau giảm và làm tròn HALF_UP đến đồng. Pay yêu cầu `PAYMENT_REQUESTED`, tạo invoice/payment, đặt order `PAID`, trả bàn về `AVAILABLE`; phương thức hiện tại chỉ `CASH`. Chưa chứng minh an toàn cho thanh toán đồng thời.
 
-JWT đơn giản là đủ cho bài tập. Không cần SSO, MFA hoặc hệ thống identity phức tạp.
+## 6. Database và migration
 
-### Quản lý bàn
+Flyway chạy với Hibernate `ddl-auto: validate`. `V1__create_core_tables.sql` tạo `categories`, `menu_items`, `restaurant_tables`, `orders`, `order_items`, `invoices`, `payments`. Quan hệ chính: category–menu items, table–orders, order–items là một-nhiều; invoice có `order_id` unique và payment có `invoice_id` unique. `order_items` lưu `item_name`, `unit_price_vnd` snapshot.
 
-- Admin thêm, sửa tên và tắt/bật bàn.
-- Waiter xem sơ đồ bàn.
-- Trạng thái bàn: `AVAILABLE`, `OCCUPIED`, `READY_TO_SERVE`, `PAYMENT_REQUESTED`.
-- V1.0 chỉ cho một order đang mở trên một bàn để đơn giản hóa.
+`V2__auth.sql` tạo `app_users` (`id`, `username`, `password_hash`, `role`, `active`, `token_version`) và `auth_guard` (một hàng id 1 dùng khóa transaction). Role được lưu trực tiếp trong `app_users` với CHECK constraint; **không có bảng `users` hay `roles`**, cũng không có cột người tạo order/người nhận thanh toán trong schema hiện tại.
 
-### Quản lý thực đơn
+## 7. Realtime và quyền STOMP
 
-- Admin CRUD danh mục và món ăn.
-- Cập nhật tên, giá, mô tả và URL hình ảnh.
-- Bếp/Admin bật hoặc tắt trạng thái còn hàng.
-- Waiter không được chọn món hết hàng.
-- Không xóa vật lý món đã xuất hiện trong order; chỉ đánh dấu không hoạt động.
+Endpoint WebSocket `/ws` dùng Spring simple broker `/topic`; client phải gửi đúng một native header `Authorization: Bearer <JWT>` trong frame STOMP `CONNECT` (hoặc `STOMP`). Handshake HTTP public không đồng nghĩa subscription public. Server xác thực lại token khi xử lý frame và trước khi gửi MESSAGE; token hết hạn hoặc tài khoản thay đổi sẽ không còn nhận delivery. Client không được `SEND` tới broker hay `/app`; chỉ được subscribe các topic sau:
 
-### Order
+| Topic | Role được subscribe | Event server phát |
+|---|---|---|
+| `/topic/tables` | WAITER, ADMIN | `table.status_changed` |
+| `/topic/menu` | WAITER, KITCHEN, ADMIN | `menu.availability_changed` |
+| `/topic/kitchen` | KITCHEN, ADMIN | `order.submitted` |
+| `/topic/cashier` | CASHIER, ADMIN | `payment.requested` |
+| `/topic/orders/{uuid}` | WAITER, ADMIN | `order_item.status_changed`, `payment.completed` |
 
-Waiter có thể chọn bàn, chọn món, tăng/giảm số lượng, thêm ghi chú, gửi bếp, theo dõi món và yêu cầu thanh toán.
+Chỉ topic order với UUID đúng định dạng được cho phép; không có kiểm tra sở hữu theo order. Event gồm `eventId`, `eventType`, `entityId`, `occurredAt`, `data`; được phát sau commit khi có transaction synchronization, hoặc ngay khi không có. Database là nguồn dữ liệu chính; frontend reconnect/chạy lại REST chưa có implementation.
 
-Trạng thái order:
+## 8. Kiểm thử và triển khai
 
-```text
-OPEN → SUBMITTED → IN_PROGRESS → READY → SERVED → PAYMENT_REQUESTED → PAID → CLOSED
-```
-
-Trạng thái món:
-
-```text
-PENDING → COOKING → DONE → SERVED
-```
-
-Quy tắc tối thiểu:
-
-- Chỉ order đã gửi mới xuất hiện ở bếp.
-- Bếp xử lý món theo thứ tự gửi trước làm trước.
-- Bếp chuyển `PENDING → COOKING → DONE`.
-- Waiter chuyển `DONE → SERVED`.
-- Backend phải kiểm tra quyền và trạng thái trong mọi thao tác.
-
-### Màn hình bếp
-
-- Hiển thị món đang chờ và đang nấu.
-- Sắp xếp theo thời gian gửi.
-- Hiển thị số bàn, tên món, số lượng và ghi chú.
-- Có nút lớn để chuyển sang `COOKING` và `DONE`.
-- Có thể bật/tắt hết hàng cho món.
-
-Không cần làm nhiều khu bếp, nhiều KDS hoặc điều phối bếp nâng cao.
-
-### Thanh toán và hóa đơn
-
-Cashier xem yêu cầu thanh toán, xem món, áp dụng giảm giá, tính VAT 8%, đánh dấu đã thanh toán và in hóa đơn bằng trình duyệt.
-
-```text
-Tạm tính = tổng số lượng × đơn giá
-Sau giảm giá = Tạm tính - Giảm giá
-VAT = Sau giảm giá × 8%
-Tổng tiền = Sau giảm giá + VAT
-```
-
-Đơn giá cần được lưu trong order item để giá cũ không thay đổi khi Admin cập nhật menu. V1.0 chỉ cần phương thức tiền mặt; không tích hợp cổng thanh toán online.
-
-### Báo cáo
-
-Admin xem theo ngày:
-
-- Tổng doanh thu.
-- Số order hoàn thành.
-- Tổng VAT và giảm giá.
-- Top món bán chạy.
-
-Có thể tính trực tiếp bằng SQL, chưa cần hệ thống báo cáo riêng.
-
-## 5. Database tối giản
-
-Các bảng chính:
-
-```text
-users
-roles
-restaurant_tables
-categories
-menu_items
-orders
-order_items
-invoices
-payments
-```
-
-Quan hệ:
-
-```text
-categories 1 ─── n menu_items
-restaurant_tables 1 ─── n orders
-orders 1 ─── n order_items
-orders 1 ─── 1 invoices
-invoices 1 ─── 1 payments
-```
-
-Trường quan trọng:
-
-- `users`: id, username, password_hash, display_name, role, is_active.
-- `restaurant_tables`: id, name, status, is_active.
-- `categories`: id, name, is_active.
-- `menu_items`: id, category_id, name, price, image_url, is_available, is_active.
-- `orders`: id, table_id, created_by, status, created_at, updated_at.
-- `order_items`: id, order_id, menu_item_id, item_name, unit_price, quantity, note, status.
-- `invoices`: id, order_id, subtotal, discount, vat, total, status, created_at.
-- `payments`: id, invoice_id, amount, method, paid_by, paid_at.
-
-Nên lưu `item_name` và `unit_price` trong `order_items` như snapshot tại thời điểm gọi món.
-
-## 6. REST API tối thiểu
-
-Prefix: `/api/v1`.
-
-### Auth
-
-- `POST /auth/login`
-- `POST /auth/logout`
-- `GET /auth/me`
-
-### Bàn và menu
-
-- `GET /tables`
-- `POST /tables` — Admin
-- `PATCH /tables/:id` — Admin
-- `DELETE /tables/:id` — Admin
-- `GET /menu`
-- `POST /categories` — Admin
-- `PATCH /categories/:id` — Admin
-- `POST /menu-items` — Admin
-- `PATCH /menu-items/:id` — Admin
-- `DELETE /menu-items/:id` — Admin
-- `PATCH /menu-items/:id/availability` — Kitchen/Admin
-
-### Order và bếp
-
-- `GET /tables/:tableId/orders/current`
-- `POST /orders`
-- `GET /orders/:id`
-- `POST /orders/:id/submit`
-- `POST /orders/:id/request-payment`
-- `POST /order-items/:id/serve`
-- `GET /kitchen/queue`
-- `POST /kitchen/order-items/:id/start`
-- `POST /kitchen/order-items/:id/done`
-
-### Thu ngân và báo cáo
-
-- `GET /cashier/payment-requests`
-- `GET /orders/:id/invoice`
-- `POST /orders/:id/pay`
-- `GET /reports/revenue?date=YYYY-MM-DD`
-- `GET /reports/top-items?date=YYYY-MM-DD`
-
-Frontend và backend cần thống nhất tên API, status code và format lỗi. Không cần thiết kế API quá lớn.
-
-## 7. Realtime đơn giản
-
-Các event cần có:
-
-- `order.submitted`: báo cho bếp.
-- `order_item.status_changed`: báo cho phục vụ.
-- `menu.availability_changed`: báo món hết hàng.
-- `payment.requested`: báo cho thu ngân.
-- `payment.completed`: cập nhật bàn.
-
-WebSocket chỉ dùng để thông báo. Database vẫn là nguồn dữ liệu chính.
-
-Nếu mất kết nối, frontend hiển thị thông báo và gọi lại API khi kết nối lại. Không cần xây dựng event queue hoặc cơ chế đồng bộ phức tạp.
-
-## 8. Bảo mật tối thiểu
-
-- Dùng HTTPS khi deploy.
-- Không commit `.env`.
-- Hash mật khẩu/PIN.
-- Kiểm tra authentication và role ở backend.
-- Validate dữ liệu đầu vào.
-- Dùng ORM hoặc parameterized query.
-- Cấu hình CORS cho frontend.
-- Không log password hoặc token.
-
-## 9. Triển khai
-
-Theo SRS:
-
-- Frontend: Vercel.
-- Backend: Render.
-- Database: Neon PostgreSQL.
-
-Biến môi trường tối thiểu:
-
-```text
-DATABASE_URL=...
-JWT_SECRET=...
-FRONTEND_URL=...
-PORT=...
-```
-
-Backend nên có `GET /health` để kiểm tra server đang chạy.
-
-## 10. Kiểm thử vừa đủ
-
-### Unit test
-
-- Tính tổng tiền, VAT và giảm giá.
-- Kiểm tra chuyển trạng thái order.
-- Kiểm tra quyền theo role.
-
-### Integration test
-
-- Đăng nhập.
-- Tạo và submit order.
-- Bếp cập nhật món.
-- Request payment và pay.
-- Món hết hàng không thể thêm vào order mới.
-
-### Kịch bản demo end-to-end
-
-1. Waiter đăng nhập, chọn bàn và gọi món.
-2. Kitchen nhận order, chuyển món sang đang nấu và đã xong.
-3. Waiter thấy món đã xong và đánh dấu đã phục vụ.
-4. Waiter yêu cầu thanh toán.
-5. Cashier tính tiền, VAT, giảm giá và hoàn tất.
-6. Admin kiểm tra menu, bàn và báo cáo.
-
-## 11. Những điểm cần chốt với nhóm
-
-1. V1.0 chỉ có một order đang mở trên mỗi bàn.
-2. Gọi thêm món thì thêm item vào order hiện tại.
-3. Waiter là người đánh dấu món đã phục vụ.
-4. Cashier dùng tiền mặt trong bản đầu tiên.
-5. Giảm giá dùng một số tiền cố định.
-6. In hóa đơn bằng trình duyệt, chưa cần máy in nhiệt.
-7. Một nhà hàng duy nhất, chưa làm multi-tenant.
-8. Chỉ cần một màn hình bếp và một màn hình thu ngân trong demo.
-
-## 12. Kết luận
-
-Kiến trúc phù hợp nhất là:
-
-> **Một frontend web responsive + một backend monolithic 3 lớp + một PostgreSQL database + WebSocket đơn giản.**
-
-Thiết kế này đủ đáp ứng các yêu cầu chính trong SRS nhưng vẫn giữ dự án nhỏ, dễ triển khai và phù hợp mục tiêu môn học. Không nên bổ sung microservices, event-driven architecture, Redis, Kubernetes, offline-first hoặc các tính năng thương mại điện tử vì không cần thiết cho bài tập.
+Test hiện dùng H2 chế độ PostgreSQL, không chứng minh tính tương đương PostgreSQL thực tế; profile `prod` cấu hình PostgreSQL nhưng môi trường triển khai, HTTPS và frontend chưa được xác nhận bởi source. Xem TEST_CASES.md để biết chính xác từng kiểm thử, bao gồm các kiểm thử WebSocket thực và giới hạn của chúng. Không có bằng chứng hiện tại về MFA, rate limiting, hiệu năng hay kiểm thử end-to-end frontend.
