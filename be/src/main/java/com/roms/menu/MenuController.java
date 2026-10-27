@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -79,7 +80,7 @@ public class MenuController {
         menuService.deactivateMenuItem(id);
     }
 
-    public record CategoryRequest(@NotBlank String name) { }
+    public record CategoryRequest(@NotBlank @Size(max = 80) String name) { }
 
     public record CategoryResponse(UUID id, String name, boolean active) {
         static CategoryResponse from(Category category) {
@@ -89,12 +90,12 @@ public class MenuController {
 
     public record MenuItemRequest(
             @NotNull UUID categoryId,
-            @NotBlank String name,
-            String description,
-            @PositiveOrZero long priceVnd,
-            String imageUrl) { }
+            @NotBlank @Size(max = 120) String name,
+            @Size(max = 500) String description,
+            @NotNull @PositiveOrZero Long priceVnd,
+            @Size(max = 500) String imageUrl) { }
 
-    public record AvailabilityRequest(boolean available) { }
+    public record AvailabilityRequest(@NotNull Boolean available) { }
 
     public record MenuItemResponse(UUID id, UUID categoryId, String categoryName, String name,
                                    String description, long priceVnd, String imageUrl,

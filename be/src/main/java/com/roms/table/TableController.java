@@ -3,6 +3,7 @@ package com.roms.table;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -48,7 +49,7 @@ public class TableController {
         tableService.deactivate(id);
     }
 
-    public record TableRequest(@NotBlank String name, @Min(1) int capacity) { }
+    public record TableRequest(@NotBlank @Size(max = 30) String name, @Min(1) int capacity) { }
 
     public record TableResponse(UUID id, String name, int capacity, TableStatus status, boolean active) {
         static TableResponse from(RestaurantTable table) {

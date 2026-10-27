@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -66,7 +67,7 @@ public class OrderController {
         return orderService.serveItem(id);
     }
 
-    public record CreateOrderRequest(@NotNull UUID tableId, @NotEmpty List<@Valid CreateOrderItemRequest> items) { }
+    public record CreateOrderRequest(@NotNull UUID tableId, @NotEmpty List<@NotNull @Valid CreateOrderItemRequest> items) { }
 
-    public record CreateOrderItemRequest(@NotNull UUID menuItemId, @Min(1) int quantity, String note) { }
+    public record CreateOrderItemRequest(@NotNull UUID menuItemId, @Min(1) int quantity, @Size(max = 300) String note) { }
 }

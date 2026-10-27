@@ -33,7 +33,11 @@ public class TableService {
     }
 
     public void deactivate(UUID id) {
-        findActiveTable(id).deactivate();
+        RestaurantTable table = findActiveTable(id);
+        if (table.getStatus() != TableStatus.AVAILABLE) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Không thể tắt bàn đang có khách");
+        }
+        table.deactivate();
     }
 
     private RestaurantTable findActiveTable(UUID id) {

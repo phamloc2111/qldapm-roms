@@ -5,6 +5,6 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface MenuItemRepository extends JpaRepository<MenuItem, UUID> {
-    List<MenuItem> findAllByActiveTrueOrderByNameAsc();
-    List<MenuItem> findAllByActiveTrueAndAvailableTrueOrderByNameAsc();
+    List<MenuItem> findAllByActiveTrueAndCategory_ActiveTrueOrderByNameAsc();
+    List<MenuItem> findAllByActiveTrueAndCategory_ActiveTrueAndAvailableTrueOrderByNameAsc();
 }

@@ -45,8 +45,8 @@ public class MenuService {
     @Transactional(readOnly = true)
     public List<MenuItem> getMenu(boolean availableOnly) {
         return availableOnly
-                ? menuItemRepository.findAllByActiveTrueAndAvailableTrueOrderByNameAsc()
-                : menuItemRepository.findAllByActiveTrueOrderByNameAsc();
+                ? menuItemRepository.findAllByActiveTrueAndCategory_ActiveTrueAndAvailableTrueOrderByNameAsc()
+                : menuItemRepository.findAllByActiveTrueAndCategory_ActiveTrueOrderByNameAsc();
     }
 
     public MenuItem createMenuItem(UUID categoryId, String name, String description, long priceVnd, String imageUrl) {

@@ -50,7 +50,7 @@ public class OrderService {
         RestaurantOrder order = new RestaurantOrder(table);
         for (CreateOrderItem requestedItem : requestedItems) {
             MenuItem menuItem = menuItemRepository.findById(requestedItem.menuItemId())
-                    .filter(MenuItem::isActive)
+                    .filter(item -> item.isActive() && item.getCategory().isActive())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy món ăn"));
             if (!menuItem.isAvailable()) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
@@ -146,7 +146,7 @@ public class OrderService {
     private OrderResponse updateOrderAfterItemChange(OrderItem item) {
         RestaurantOrder order = item.getOrder();
         order.refreshStatus();
-        if (order.getStatus() == OrderStatus.READY) {
+        if (order.getItems().stream().anyMatch(orderItem -> orderItem.getStatus() == OrderItemStatus.DONE)) {
             order.getTable().updateStatus(TableStatus.READY_TO_SERVE);
         } else {
             order.getTable().updateStatus(TableStatus.OCCUPIED);
