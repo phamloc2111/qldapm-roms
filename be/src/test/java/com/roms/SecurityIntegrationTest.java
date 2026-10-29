@@ -134,21 +134,29 @@ class SecurityIntegrationTest extends AuthTestBase {
         Set<Role> kitchen = Set.of(Role.KITCHEN, Role.ADMIN);
         Set<Role> cashier = Set.of(Role.CASHIER, Role.ADMIN);
         Set<Role> admins = Set.of(Role.ADMIN);
+        Set<Role> allRoles = Set.of(Role.WAITER, Role.KITCHEN, Role.CASHIER, Role.ADMIN);
+        Set<Role> waiterKitchenAdmin = Set.of(Role.WAITER, Role.KITCHEN, Role.ADMIN);
         // Invalid bodies and nonexistent IDs exercise authorization without modifying business data.
         List<Route> routes = List.of(
+                new Route(HttpMethod.GET, "/auth/me", 200, allRoles),
                 new Route(HttpMethod.GET, "/tables", 200, waiter),
+                new Route(HttpMethod.GET, "/tables/" + id + "/current-order", 404, waiter),
                 new Route(HttpMethod.GET, "/orders/" + id, 404, waiter),
                 new Route(HttpMethod.GET, "/categories", 200, menu),
                 new Route(HttpMethod.GET, "/menu-items", 200, menu),
                 new Route(HttpMethod.POST, "/orders", 400, waiter),
+                new Route(HttpMethod.POST, "/orders/" + id + "/items", 400, waiter),
                 new Route(HttpMethod.POST, "/orders/" + id + "/request-payment", 404, waiter),
                 new Route(HttpMethod.POST, "/order-items/" + id + "/serve", 404, waiter),
+                new Route(HttpMethod.POST, "/order-items/" + id + "/cancel", 404, waiterKitchenAdmin),
                 new Route(HttpMethod.GET, "/kitchen/queue", 200, kitchen),
                 new Route(HttpMethod.POST, "/kitchen/order-items/" + id + "/start", 404, kitchen),
                 new Route(HttpMethod.POST, "/kitchen/order-items/" + id + "/done", 404, kitchen),
                 new Route(HttpMethod.GET, "/cashier/payment-requests", 200, cashier),
                 new Route(HttpMethod.GET, "/orders/" + id + "/invoice/preview", 404, cashier),
                 new Route(HttpMethod.POST, "/orders/" + id + "/pay", 404, cashier),
+                new Route(HttpMethod.GET, "/reports/revenue", 200, admins),
+                new Route(HttpMethod.GET, "/reports/top-items", 200, admins),
                 new Route(HttpMethod.POST, "/tables", 400, admins),
                 new Route(HttpMethod.PATCH, "/tables/" + id, 400, admins),
                 new Route(HttpMethod.DELETE, "/tables/" + id, 404, admins),
@@ -157,7 +165,7 @@ class SecurityIntegrationTest extends AuthTestBase {
                 new Route(HttpMethod.DELETE, "/categories/" + id, 404, admins),
                 new Route(HttpMethod.POST, "/menu-items", 400, admins),
                 new Route(HttpMethod.PATCH, "/menu-items/" + id, 400, admins),
-                new Route(HttpMethod.PATCH, "/menu-items/" + id + "/availability", 400, admins),
+                new Route(HttpMethod.PATCH, "/menu-items/" + id + "/availability", 400, kitchen),
                 new Route(HttpMethod.DELETE, "/menu-items/" + id, 404, admins),
                 new Route(HttpMethod.GET, "/users", 200, admins),
                 new Route(HttpMethod.POST, "/users", 400, admins),

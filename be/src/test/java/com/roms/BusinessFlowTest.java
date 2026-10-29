@@ -231,4 +231,63 @@ class BusinessFlowTest extends AuthTestBase {
                     .content("{\"tableId\":\"%s\",\"items\":%s}".formatted(tableId, item(1))))
                 .andExpect(status().isNotFound());
             }
+
+    @Test
+    void canGetActiveOrderByTableIdAndAddMoreItems() throws Exception {
+        JsonNode order = order(item(1));
+        String orderId = order.get("id").asText();
+
+        mvc.perform(get("/api/v1/tables/{tableId}/current-order", tableId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(orderId))
+                .andExpect(jsonPath("$.items", hasSize(1)));
+
+        mvc.perform(post("/api/v1/orders/{id}/items", orderId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"items\":" + item(2) + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(2)))
+                .andExpect(jsonPath("$.status").value("SUBMITTED"));
+    }
+
+    @Test
+    void canCancelPendingItemAndCancelAllClosesOrder() throws Exception {
+        JsonNode order = order(item(1));
+        String orderId = order.get("id").asText();
+        String orderItemId = order.get("items").get(0).get("id").asText();
+
+        mvc.perform(post("/api/v1/order-items/{id}/cancel", orderItemId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].status").value("CANCELLED"))
+                .andExpect(jsonPath("$.status").value("CLOSED"));
+
+        mvc.perform(get("/api/v1/tables"))
+                .andExpect(jsonPath("$[0].status").value("AVAILABLE"));
+    }
+
+    @Test
+    void reportsCalculateRevenueAndTopItems() throws Exception {
+        String id = servedOrder(2).get("id").asText();
+        action("/api/v1/orders/{id}/request-payment", id);
+        mvc.perform(post("/api/v1/orders/{id}/pay", id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"discountVnd\":0,\"method\":\"CASH\"}"))
+                .andExpect(status().isCreated());
+
+        mvc.perform(get("/api/v1/reports/revenue"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalOrdersCompleted").value(1))
+                .andExpect(jsonPath("$.totalRevenueVnd").isNumber());
+
+        mvc.perform(get("/api/v1/reports/top-items"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].itemName").value("Soup"))
+                .andExpect(jsonPath("$[0].quantitySold").value(2));
+
+        mvc.perform(get("/api/v1/reports/summary"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.revenue.totalOrdersCompleted").value(1))
+                .andExpect(jsonPath("$.topItems", hasSize(1)));
+    }
 }
