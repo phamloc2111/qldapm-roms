@@ -4,5 +4,6 @@ public enum OrderItemStatus {
     PENDING,
     COOKING,
     DONE,
-    SERVED
+    SERVED,
+    CANCELLED
 }

@@ -112,4 +112,8 @@ public class OrderItem {
     public void serve() {
         this.status = OrderItemStatus.SERVED;
     }
+
+    public void cancel() {
+        this.status = OrderItemStatus.CANCELLED;
+    }
 }

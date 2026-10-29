@@ -37,9 +37,22 @@ public class OrderController {
         return orderService.createAndSubmit(request.tableId(), items);
     }
 
+    @PostMapping("/orders/{id}/items")
+    public OrderResponse addItems(@PathVariable UUID id, @Valid @RequestBody AddOrderItemsRequest request) {
+        List<OrderService.CreateOrderItem> items = request.items().stream()
+                .map(item -> new OrderService.CreateOrderItem(item.menuItemId(), item.quantity(), item.note()))
+                .toList();
+        return orderService.addItems(id, items);
+    }
+
     @GetMapping("/orders/{id}")
     public OrderResponse getOrder(@PathVariable UUID id) {
         return orderService.getOrder(id);
+    }
+
+    @GetMapping("/tables/{tableId}/current-order")
+    public OrderResponse getCurrentOrderByTable(@PathVariable UUID tableId) {
+        return orderService.getCurrentOrderByTable(tableId);
     }
 
     @PostMapping("/orders/{id}/request-payment")
@@ -67,7 +80,14 @@ public class OrderController {
         return orderService.serveItem(id);
     }
 
+    @PostMapping("/order-items/{id}/cancel")
+    public OrderResponse cancelItem(@PathVariable UUID id) {
+        return orderService.cancelItem(id);
+    }
+
     public record CreateOrderRequest(@NotNull UUID tableId, @NotEmpty List<@NotNull @Valid CreateOrderItemRequest> items) { }
+
+    public record AddOrderItemsRequest(@NotEmpty List<@NotNull @Valid CreateOrderItemRequest> items) { }
 
     public record CreateOrderItemRequest(@NotNull UUID menuItemId, @Min(1) int quantity, @Size(max = 300) String note) { }
 }

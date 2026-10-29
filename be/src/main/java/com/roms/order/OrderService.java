@@ -67,10 +67,52 @@ public class OrderService {
         return OrderResponse.from(savedOrder);
     }
 
+    public OrderResponse addItems(UUID orderId, List<CreateOrderItem> requestedItems) {
+        RestaurantOrder order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy order"));
+
+        if (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CLOSED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Không thể thêm món vào order đã thanh toán hoặc đã đóng");
+        }
+
+        for (CreateOrderItem requestedItem : requestedItems) {
+            MenuItem menuItem = menuItemRepository.findById(requestedItem.menuItemId())
+                    .filter(item -> item.isActive() && item.getCategory().isActive())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy món ăn"));
+            if (!menuItem.isAvailable()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Món " + menuItem.getName() + " hiện đã hết hàng");
+            }
+            order.addItem(new OrderItem(menuItem, requestedItem.quantity(), requestedItem.note()));
+        }
+
+        order.refreshStatus();
+        RestaurantTable table = order.getTable();
+        if (order.getItems().stream().anyMatch(item -> item.getStatus() == OrderItemStatus.DONE)) {
+            table.updateStatus(TableStatus.READY_TO_SERVE);
+        } else {
+            table.updateStatus(TableStatus.OCCUPIED);
+        }
+
+        RestaurantOrder savedOrder = orderRepository.save(order);
+        OrderResponse response = OrderResponse.from(savedOrder);
+        realtimeEventService.orderSubmitted(savedOrder.getId(), response);
+        realtimeEventService.itemStatusChanged(savedOrder.getId(), response);
+        realtimeEventService.tableStatusChanged(table.getId(), tableStatusPayload(table));
+        return response;
+    }
+
     @Transactional(readOnly = true)
     public OrderResponse getOrder(UUID id) {
         RestaurantOrder order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy order"));
+        return OrderResponse.from(order);
+    }
+
+    @Transactional(readOnly = true)
+    public OrderResponse getCurrentOrderByTable(UUID tableId) {
+        RestaurantOrder order = orderRepository.findFirstByTable_IdAndStatusIn(tableId, ACTIVE_STATUSES)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy order đang hoạt động của bàn"));
         return OrderResponse.from(order);
     }
 
@@ -143,10 +185,25 @@ public class OrderService {
         return updateOrderAfterItemChange(item);
     }
 
+    public OrderResponse cancelItem(UUID itemId) {
+        OrderItem item = findItem(itemId);
+        if (item.getStatus() != OrderItemStatus.PENDING) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Chỉ món đang chờ nấu mới có thể hủy");
+        }
+        item.cancel();
+        return updateOrderAfterItemChange(item);
+    }
+
     private OrderResponse updateOrderAfterItemChange(OrderItem item) {
         RestaurantOrder order = item.getOrder();
         order.refreshStatus();
-        if (order.getItems().stream().anyMatch(orderItem -> orderItem.getStatus() == OrderItemStatus.DONE)) {
+        List<OrderItem> activeItems = order.getItems().stream()
+                .filter(orderItem -> orderItem.getStatus() != OrderItemStatus.CANCELLED)
+                .toList();
+
+        if (order.getStatus() == OrderStatus.CLOSED || activeItems.isEmpty()) {
+            order.getTable().updateStatus(TableStatus.AVAILABLE);
+        } else if (activeItems.stream().anyMatch(orderItem -> orderItem.getStatus() == OrderItemStatus.DONE)) {
             order.getTable().updateStatus(TableStatus.READY_TO_SERVE);
         } else {
             order.getTable().updateStatus(TableStatus.OCCUPIED);

@@ -99,10 +99,19 @@ public class RestaurantOrder {
         if (items.isEmpty()) {
             return;
         }
-        boolean allServed = items.stream().allMatch(item -> item.getStatus() == OrderItemStatus.SERVED);
-        boolean allDoneOrServed = items.stream().allMatch(item ->
+        List<OrderItem> activeItems = items.stream()
+                .filter(item -> item.getStatus() != OrderItemStatus.CANCELLED)
+                .toList();
+
+        if (activeItems.isEmpty()) {
+            this.status = OrderStatus.CLOSED;
+            return;
+        }
+
+        boolean allServed = activeItems.stream().allMatch(item -> item.getStatus() == OrderItemStatus.SERVED);
+        boolean allDoneOrServed = activeItems.stream().allMatch(item ->
                 item.getStatus() == OrderItemStatus.DONE || item.getStatus() == OrderItemStatus.SERVED);
-        boolean anyStarted = items.stream().anyMatch(item -> item.getStatus() != OrderItemStatus.PENDING);
+        boolean anyStarted = activeItems.stream().anyMatch(item -> item.getStatus() != OrderItemStatus.PENDING);
 
         if (allServed) {
             status = OrderStatus.SERVED;
@@ -110,6 +119,8 @@ public class RestaurantOrder {
             status = OrderStatus.READY;
         } else if (anyStarted) {
             status = OrderStatus.IN_PROGRESS;
+        } else {
+            status = OrderStatus.SUBMITTED;
         }
     }
 }
