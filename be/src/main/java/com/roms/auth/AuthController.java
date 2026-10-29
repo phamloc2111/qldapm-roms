@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -38,6 +39,16 @@ public class AuthController {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
         }
         return new TokenResponse(tokens.issue(user), "Bearer", 28800);
+    }
+
+    @GetMapping("/auth/me")
+    public AccountService.UserView me(Authentication authentication) {
+        if (authentication == null || authentication.getName() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthenticated");
+        }
+        AppUser user = users.findByUsername(authentication.getName().toLowerCase(Locale.ROOT))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+        return new AccountService.UserView(user.getId(), user.getUsername(), user.getRole(), user.isActive());
     }
 
     @GetMapping("/users")
