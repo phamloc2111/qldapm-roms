@@ -2,17 +2,27 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { RomsProvider, useRoms } from './context/RomsContext';
 import AppLayout from './components/layout/AppLayout';
+import ToastBanner from './components/common/ToastBanner';
 import LoginPage from './pages/LoginPage';
 import TableMapPage from './pages/TableMapPage';
 import MenuOrderPage from './pages/MenuOrderPage';
 import OrderTrackingPage from './pages/OrderTrackingPage';
 import PaymentPage from './pages/PaymentPage';
 import ProfilePage from './pages/ProfilePage';
+import KitchenPage from './pages/KitchenPage';
 
-function ProtectedRoute({ children }) {
+function RoleProtectedRoute({ allowedRole, children }) {
   const { currentUser } = useRoms();
   if (!currentUser) {
     return <Navigate to="/login" replace />;
+  }
+  if (allowedRole && currentUser.role !== allowedRole) {
+    return (
+      <Navigate
+        to={currentUser.role === 'KITCHEN' ? '/kitchen' : '/tables'}
+        replace
+      />
+    );
   }
   return children;
 }
@@ -20,9 +30,25 @@ function ProtectedRoute({ children }) {
 function PublicLoginRoute({ children }) {
   const { currentUser } = useRoms();
   if (currentUser) {
+    if (currentUser.role === 'KITCHEN') {
+      return <Navigate to="/kitchen" replace />;
+    }
     return <Navigate to="/tables" replace />;
   }
   return children;
+}
+
+function RoleDefaultRedirect() {
+  const { currentUser } = useRoms();
+  if (!currentUser) {
+    return <Navigate to="/login" replace />;
+  }
+  return (
+    <Navigate
+      to={currentUser.role === 'KITCHEN' ? '/kitchen' : '/tables'}
+      replace
+    />
+  );
 }
 
 export default function App() {
@@ -40,11 +66,21 @@ export default function App() {
           />
 
           <Route
+            path="/kitchen"
+            element={
+              <RoleProtectedRoute allowedRole="KITCHEN">
+                <ToastBanner />
+                <KitchenPage />
+              </RoleProtectedRoute>
+            }
+          />
+
+          <Route
             path="/"
             element={
-              <ProtectedRoute>
+              <RoleProtectedRoute allowedRole="WAITER">
                 <AppLayout />
-              </ProtectedRoute>
+              </RoleProtectedRoute>
             }
           >
             <Route index element={<Navigate to="/tables" replace />} />
@@ -56,10 +92,9 @@ export default function App() {
             <Route path="profile" element={<ProfilePage />} />
           </Route>
 
-          <Route path="*" element={<Navigate to="/tables" replace />} />
+          <Route path="*" element={<RoleDefaultRedirect />} />
         </Routes>
       </BrowserRouter>
     </RomsProvider>
   );
 }
-

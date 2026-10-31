@@ -36,7 +36,7 @@ export default function Header() {
         <RomsLogo size="md" />
       </button>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5 sm:gap-3">
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => {

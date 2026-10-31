@@ -22,7 +22,11 @@ export default function LoginPage() {
       return;
     }
 
-    navigate('/tables', { replace: true });
+    if (result.user?.role === 'KITCHEN') {
+      navigate('/kitchen', { replace: true });
+    } else {
+      navigate('/tables', { replace: true });
+    }
   };
 
   return (

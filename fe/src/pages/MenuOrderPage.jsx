@@ -493,38 +493,40 @@ export default function MenuOrderPage() {
         ))}
       </div>
 
-      {/* Thanh giỏ hàng sát thanh nav, tràn viền ngang, không bo góc, không đổ bóng, nút Xác nhận trước khi gửi xuống bếp */}
+      {/* Thanh giỏ hàng luôn bám sát mép dưới màn hình / sát thanh nav */}
       {cartSummary.totalItemsCount > 0 && (
-        <div className="fixed bottom-16 inset-x-0 w-full md:sticky md:bottom-0 md:w-auto md:-mx-6 z-30 bg-white rounded-none shadow-none px-4 sm:px-6 py-3 flex items-center justify-between gap-2 sm:gap-3 animate-fade-in">
-          <button
-            onClick={() => {
-              setStep('CONFIRM');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            className="flex items-center gap-2.5 sm:gap-3 text-left cursor-pointer"
-          >
-            <div className="relative p-2.5 bg-orange-50 text-orange-600 shrink-0">
-              <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" />
-              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-orange-500 text-white text-[11px] font-extrabold flex items-center justify-center">
-                {cartSummary.totalItemsCount}
-              </span>
-            </div>
-            <p className="text-xs sm:text-base font-extrabold text-slate-900">
-              {cartSummary.totalItemsCount} món •{' '}
-              {formatCurrency(cartSummary.newSubtotal)}
-            </p>
-          </button>
+        <div className="fixed bottom-16 md:bottom-0 left-0 md:left-28 lg:left-56 right-0 z-30 bg-white rounded-none shadow-none px-4 sm:px-6 py-3 animate-fade-in">
+          <div className="max-w-2xl mx-auto flex items-center justify-between gap-2 sm:gap-3">
+            <button
+              onClick={() => {
+                setStep('CONFIRM');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="flex items-center gap-2.5 sm:gap-3 text-left cursor-pointer"
+            >
+              <div className="relative p-2.5 bg-orange-50 text-orange-600 shrink-0">
+                <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" />
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-orange-500 text-white text-[11px] font-extrabold flex items-center justify-center">
+                  {cartSummary.totalItemsCount}
+                </span>
+              </div>
+              <p className="text-xs sm:text-base font-extrabold text-slate-900">
+                {cartSummary.totalItemsCount} món •{' '}
+                {formatCurrency(cartSummary.newSubtotal)}
+              </p>
+            </button>
 
-          <button
-            onClick={() => {
-              setStep('CONFIRM');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            className="py-3 px-5 sm:px-6 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all bg-orange-500 hover:bg-orange-600 text-white cursor-pointer"
-          >
-            <Check className="w-4 h-4 shrink-0" />
-            <span>Xác nhận</span>
-          </button>
+            <button
+              onClick={() => {
+                setStep('CONFIRM');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="py-3 px-5 sm:px-6 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all bg-orange-500 hover:bg-orange-600 text-white cursor-pointer"
+            >
+              <Check className="w-4 h-4 shrink-0" />
+              <span>Xác nhận</span>
+            </button>
+          </div>
         </div>
       )}
     </div>

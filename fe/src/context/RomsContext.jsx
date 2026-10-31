@@ -10,14 +10,37 @@ import { getCurrentTimeStr, getDerivedTableInfo } from '../utils/formatters';
 
 const RomsContext = createContext(null);
 
+const STORAGE_KEYS = {
+  TABLES: 'roms_tables_v2',
+  ORDERS: 'roms_orders_v2',
+  MENU: 'roms_menu_v2',
+};
+
+function loadFromStorage(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
 export function RomsProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
-  const [tables, setTables] = useState(INITIAL_TABLES);
-  const [orders, setOrders] = useState(INITIAL_ORDERS);
-  const [menuItems, setMenuItems] = useState(MENU_ITEMS);
+  const [tables, setTables] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.TABLES, INITIAL_TABLES)
+  );
+  const [orders, setOrders] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.ORDERS, INITIAL_ORDERS)
+  );
+  const [menuItems, setMenuItems] = useState(() =>
+    loadFromStorage(STORAGE_KEYS.MENU, MENU_ITEMS)
+  );
   const [selectedTableId, setSelectedTableId] = useState('T4');
   const [draftCartByTable, setDraftCartByTable] = useState({});
   const [toast, setToast] = useState(null);
+  const [lastSyncTime, setLastSyncTime] = useState(() => getCurrentTimeStr());
   const [notifications, setNotifications] = useState([
     {
       id: 'notif-1',
@@ -36,6 +59,62 @@ export function RomsProvider({ children }) {
       unread: false,
     },
   ]);
+
+  // Lưu và đồng bộ realtime giữa các tab trình duyệt (Phục vụ <-> Nhà Bếp)
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.TABLES, JSON.stringify(tables));
+    } catch {
+      // ignore
+    }
+  }, [tables]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+      setLastSyncTime(getCurrentTimeStr());
+    } catch {
+      // ignore
+    }
+  }, [orders]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.MENU, JSON.stringify(menuItems));
+      setLastSyncTime(getCurrentTimeStr());
+    } catch {
+      // ignore
+    }
+  }, [menuItems]);
+
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === STORAGE_KEYS.TABLES && e.newValue) {
+        try {
+          setTables(JSON.parse(e.newValue));
+          setLastSyncTime(getCurrentTimeStr());
+        } catch {
+          // ignore
+        }
+      } else if (e.key === STORAGE_KEYS.ORDERS && e.newValue) {
+        try {
+          setOrders(JSON.parse(e.newValue));
+          setLastSyncTime(getCurrentTimeStr());
+        } catch {
+          // ignore
+        }
+      } else if (e.key === STORAGE_KEYS.MENU && e.newValue) {
+        try {
+          setMenuItems(JSON.parse(e.newValue));
+          setLastSyncTime(getCurrentTimeStr());
+        } catch {
+          // ignore
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ id: Date.now(), message, type });
@@ -181,7 +260,7 @@ export function RomsProvider({ children }) {
     }));
   }, []);
 
-  // 4. Gửi đơn xuống bếp (Hỗ trợ cả 2 trường hợp: Tạo lần gọi đầu tiên & Gọi thêm món vào lần gọi đang mở)
+  // 4. Gửi đơn xuống bếp (FR-K01: Tự động đưa vào hàng đợi FIFO "Vào trước - Làm trước")
   const submitCartToKitchen = useCallback(
     (tableId, guestCountInput) => {
       const cartItems = draftCartByTable[tableId] || [];
@@ -194,14 +273,16 @@ export function RomsProvider({ children }) {
       if (!targetTable) return null;
 
       const nowStr = getCurrentTimeStr();
+      const shortWaiterName =
+        currentUser?.fullName?.trim().split(/\s+/).pop() || 'An';
       let resultOrder = null;
       let isAddingToExisting = false;
 
       if (targetTable.activeOrderId) {
-        // Trường hợp 2: Gọi thêm món vào lần gọi đang mở
         isAddingToExisting = true;
         const existingOrder = orders.find((o) => o.id === targetTable.activeOrderId);
         const nextRound = (existingOrder?.roundCount || 1) + 1;
+        const roundFifo = Date.now();
 
         const newOrderItems = cartItems.map((c, idx) => ({
           id: `item-${Date.now()}-${idx}`,
@@ -214,6 +295,7 @@ export function RomsProvider({ children }) {
           orderedAt: nowStr,
           updatedAt: nowStr,
           round: nextRound,
+          roundFifo,
           image: c.image,
         }));
 
@@ -239,11 +321,11 @@ export function RomsProvider({ children }) {
           );
         }
       } else {
-        // Trường hợp 1: Tạo lần gọi món đầu tiên cho bàn trống
         const nextOrderNumber = 1046 + orders.length;
         const newOrderId = `ORD-${nextOrderNumber}`;
         const newOrderCode = `#${nextOrderNumber}`;
         const guests = guestCountInput || 2;
+        const roundFifo = Date.now();
 
         const newOrderItems = cartItems.map((c, idx) => ({
           id: `item-${Date.now()}-${idx}`,
@@ -256,6 +338,7 @@ export function RomsProvider({ children }) {
           orderedAt: nowStr,
           updatedAt: nowStr,
           round: 1,
+          roundFifo,
           image: c.image,
         }));
 
@@ -264,6 +347,9 @@ export function RomsProvider({ children }) {
           code: newOrderCode,
           tableId: targetTable.id,
           tableName: targetTable.name,
+          waiterName: shortWaiterName,
+          priority: 'NORMAL',
+          fifoOrder: roundFifo,
           guests,
           createdAt: nowStr,
           cookingStartedAt: null,
@@ -277,7 +363,7 @@ export function RomsProvider({ children }) {
 
         resultOrder = newOrder;
 
-        setOrders((prev) => [newOrder, ...prev]);
+        setOrders((prev) => [...prev, newOrder]);
         setTables((prev) =>
           prev.map((t) =>
             t.id === tableId
@@ -287,7 +373,6 @@ export function RomsProvider({ children }) {
         );
       }
 
-      // Xóa giỏ tạm sau khi gửi xuống bếp
       setDraftCartByTable((prev) => ({
         ...prev,
         [tableId]: [],
@@ -323,10 +408,10 @@ export function RomsProvider({ children }) {
         addedCount: totalNewQty,
       };
     },
-    [draftCartByTable, tables, orders, showToast]
+    [draftCartByTable, tables, orders, currentUser, showToast]
   );
 
-  // 5. Thao tác trên màn hình Theo dõi món: Xác nhận đã phục vụ
+  // 5. Thao tác trên màn hình Theo dõi món: Xác nhận đã phục vụ (DONE -> SERVED)
   const markDishServed = useCallback(
     (orderId, itemId) => {
       const nowStr = getCurrentTimeStr();
@@ -338,7 +423,7 @@ export function RomsProvider({ children }) {
           if (order.id !== orderId) return order;
           tableName = order.tableName;
           const updatedItems = order.items.map((item) => {
-            if (item.id !== itemId) return item;
+            if (item.id !== itemId || item.status !== DISH_STATUS.DONE) return item;
             dishName = item.name;
             return {
               ...item,
@@ -370,93 +455,7 @@ export function RomsProvider({ children }) {
     [showToast]
   );
 
-  // Xác nhận đã phục vụ toàn bộ các món chưa hoàn thành của bàn / lần gọi
-  const markAllDishesServed = useCallback(
-    (orderId) => {
-      const nowStr = getCurrentTimeStr();
-      let tableName = '';
-
-      setOrders((prev) =>
-        prev.map((order) => {
-          if (order.id !== orderId) return order;
-          tableName = order.tableName;
-          const updatedItems = order.items.map((item) => {
-            if (
-              item.status === DISH_STATUS.SERVED ||
-              item.status === DISH_STATUS.CANCELLED
-            ) {
-              return item;
-            }
-            return {
-              ...item,
-              status: DISH_STATUS.SERVED,
-              updatedAt: nowStr,
-            };
-          });
-
-          return {
-            ...order,
-            cookingStartedAt: order.cookingStartedAt || nowStr,
-            cookedAt: order.cookedAt || nowStr,
-            servedAt: nowStr,
-            items: updatedItems,
-          };
-        })
-      );
-
-      if (tableName) {
-        showToast(`Đã xác nhận hoàn thành phục vụ các món cho ${tableName}.`, 'success');
-      }
-    },
-    [showToast]
-  );
-
-  // Tự động cập nhật tiến độ bếp (Chờ nấu -> Đang nấu -> Đã nấu xong) cho các món mới gọi
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const nowStr = getCurrentTimeStr();
-      setOrders((prev) => {
-        let changed = false;
-        const nextOrders = prev.map((order) => {
-          const idxToAdvance = order.items.findIndex(
-            (i) =>
-              i.status === DISH_STATUS.PENDING ||
-              i.status === DISH_STATUS.COOKING
-          );
-          if (idxToAdvance === -1 || changed) return order;
-
-          changed = true;
-          const targetItem = order.items[idxToAdvance];
-          const nextStatus =
-            targetItem.status === DISH_STATUS.PENDING
-              ? DISH_STATUS.COOKING
-              : DISH_STATUS.DONE;
-
-          const updatedItems = order.items.map((item, idx) =>
-            idx === idxToAdvance
-              ? { ...item, status: nextStatus, updatedAt: nowStr }
-              : item
-          );
-
-          return {
-            ...order,
-            cookingStartedAt:
-              nextStatus === DISH_STATUS.COOKING && !order.cookingStartedAt
-                ? nowStr
-                : order.cookingStartedAt,
-            cookedAt:
-              nextStatus === DISH_STATUS.DONE ? nowStr : order.cookedAt,
-            items: updatedItems,
-          };
-        });
-        return changed ? nextOrders : prev;
-      });
-    }, 5000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  // 6. Thao tác trên màn hình Theo dõi món: Hủy món đang chờ chế biến (PENDING -> CANCELLED)
+  // 6. Thao tác hủy món đang chờ chế biến (PENDING -> CANCELLED)
   const cancelDish = useCallback(
     (orderId, itemId) => {
       const nowStr = getCurrentTimeStr();
@@ -490,7 +489,60 @@ export function RomsProvider({ children }) {
     [showToast]
   );
 
-  // Hỗ trợ mô phỏng tiến độ bếp ngay trên giao diện để dễ dàng kiểm thử toàn bộ luồng
+  // FR-K02: Nút bấm 1 chạm (1-touch) cho Nhà Bếp chuyển trạng thái món:
+  // PENDING (Chờ nấu) -> COOKING (Đang nấu) -> DONE (Đã xong)
+  const advanceDishKitchenStatus = useCallback(
+    (orderId, itemId) => {
+      const nowStr = getCurrentTimeStr();
+      let dishName = '';
+      let tableName = '';
+      let nextStatus = null;
+
+      setOrders((prev) =>
+        prev.map((order) => {
+          if (order.id !== orderId) return order;
+          tableName = order.tableName;
+          const updatedItems = order.items.map((item) => {
+            if (item.id !== itemId) return item;
+            if (item.status === DISH_STATUS.PENDING) {
+              nextStatus = DISH_STATUS.COOKING;
+            } else if (item.status === DISH_STATUS.COOKING) {
+              nextStatus = DISH_STATUS.DONE;
+            } else {
+              return item;
+            }
+            dishName = item.name;
+            return {
+              ...item,
+              status: nextStatus,
+              updatedAt: nowStr,
+            };
+          });
+
+          if (!nextStatus) return order;
+
+          return {
+            ...order,
+            cookingStartedAt:
+              nextStatus === DISH_STATUS.COOKING && !order.cookingStartedAt
+                ? nowStr
+                : order.cookingStartedAt,
+            cookedAt:
+              nextStatus === DISH_STATUS.DONE ? nowStr : order.cookedAt,
+            items: updatedItems,
+          };
+        })
+      );
+
+      if (dishName && nextStatus) {
+        const statusText =
+          nextStatus === DISH_STATUS.COOKING ? 'Đang nấu' : 'Đã xong';
+        showToast(`${tableName}: "${dishName}" → ${statusText}`, 'success');
+      }
+    },
+    [showToast]
+  );
+
   const simulateKitchenStep = useCallback(
     (orderId, itemId, targetStatus) => {
       const nowStr = getCurrentTimeStr();
@@ -523,7 +575,7 @@ export function RomsProvider({ children }) {
       if (dishName) {
         const statusText =
           targetStatus === DISH_STATUS.COOKING ? 'Đang chế biến' : 'Đã nấu xong';
-        showToast(`[Mô phỏng Bếp] "${dishName}" → ${statusText}`, 'info');
+        showToast(`"${dishName}" → ${statusText}`, 'info');
       }
     },
     [showToast]
@@ -554,14 +606,32 @@ export function RomsProvider({ children }) {
     [showToast]
   );
 
-  // Bật/tắt trạng thái còn hàng/hết hàng của món (hỗ trợ demo trực quan)
-  const toggleDishAvailability = useCallback((dishId) => {
-    setMenuItems((prev) =>
-      prev.map((item) =>
-        item.id === dishId ? { ...item, available: !item.available } : item
-      )
-    );
-  }, []);
+  // FR-K03: Khóa món (Out of stock) - Toggle công tắc Hết hàng / Đang bán đồng bộ tức thời sang Phục vụ
+  const toggleDishAvailability = useCallback(
+    (dishId) => {
+      let targetDishName = '';
+      let nextAvailable = true;
+
+      setMenuItems((prev) =>
+        prev.map((item) => {
+          if (item.id !== dishId) return item;
+          targetDishName = item.name;
+          nextAvailable = !item.available;
+          return { ...item, available: nextAvailable };
+        })
+      );
+
+      if (targetDishName) {
+        showToast(
+          nextAvailable
+            ? `Đã mở bán lại món "${targetDishName}".`
+            : `Đã báo hết hàng món "${targetDishName}" (đã đồng bộ sang Phục vụ).`,
+          nextAvailable ? 'success' : 'info'
+        );
+      }
+    },
+    [showToast]
+  );
 
   // Khôi phục dữ liệu mẫu ban đầu
   const resetDemoData = useCallback(() => {
@@ -596,8 +666,8 @@ export function RomsProvider({ children }) {
       clearCart,
       submitCartToKitchen,
       markDishServed,
-      markAllDishesServed,
       cancelDish,
+      advanceDishKitchenStatus,
       simulateKitchenStep,
       requestPayment,
       toggleDishAvailability,
@@ -607,6 +677,7 @@ export function RomsProvider({ children }) {
       dismissToast,
       notifications,
       markAllNotificationsRead,
+      lastSyncTime,
     }),
     [
       currentUser,
@@ -625,8 +696,8 @@ export function RomsProvider({ children }) {
       clearCart,
       submitCartToKitchen,
       markDishServed,
-      markAllDishesServed,
       cancelDish,
+      advanceDishKitchenStatus,
       simulateKitchenStep,
       requestPayment,
       toggleDishAvailability,
@@ -636,6 +707,7 @@ export function RomsProvider({ children }) {
       dismissToast,
       notifications,
       markAllNotificationsRead,
+      lastSyncTime,
     ]
   );
 
@@ -649,4 +721,3 @@ export function useRoms() {
   }
   return context;
 }
-

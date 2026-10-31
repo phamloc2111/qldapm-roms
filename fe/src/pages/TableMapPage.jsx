@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RotateCw, Utensils, CreditCard } from 'lucide-react';
+import { RotateCw, Utensils, CreditCard, X } from 'lucide-react';
 import { useRoms } from '../context/RomsContext';
 import { TABLE_STATUS } from '../data/mockData';
 import { GridTableGlyph, RestaurantTableSvg } from '../components/common/TableIcon';
@@ -12,12 +12,22 @@ export default function TableMapPage() {
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
     setTimeout(() => {
       setIsRefreshing(false);
     }, 350);
+  };
+
+  const handleSelectTable = (tableId) => {
+    if (selectedTable?.id === tableId && isDetailOpen) {
+      setIsDetailOpen(false);
+      return;
+    }
+    setSelectedTableId(tableId);
+    setIsDetailOpen(true);
   };
 
   const filteredTables =
@@ -89,7 +99,7 @@ export default function TableMapPage() {
           </button>
         </div>
 
-        {/* Chú thích trạng thái bàn giống ảnh tham khảo */}
+        {/* Chú thích trạng thái bàn */}
         <div className="flex flex-wrap items-center gap-4 mb-5 text-xs sm:text-sm font-medium text-slate-600">
           <button
             onClick={() =>
@@ -142,16 +152,16 @@ export default function TableMapPage() {
           </button>
         </div>
 
-        {/* Lưới 3x3 hiển thị các bàn */}
+        {/* Lưới 3 cột hiển thị các bàn */}
         <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
           {filteredTables.map((table) => {
-            const isSelected = selectedTable?.id === table.id;
+            const isSelected = isDetailOpen && selectedTable?.id === table.id;
             const style = getTableCardStyle(table, isSelected);
 
             return (
               <button
                 key={table.id}
-                onClick={() => setSelectedTableId(table.id)}
+                onClick={() => handleSelectTable(table.id)}
                 className={`relative rounded-2xl p-2.5 sm:p-5 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[118px] transition-all cursor-pointer ${style.card}`}
               >
                 {table.badgeCount > 0 && (
@@ -174,103 +184,115 @@ export default function TableMapPage() {
           })}
         </div>
 
-        {/* Khung thao tác của bàn đang chọn */}
-        {selectedTable && (
-          <div className="mt-5 sm:mt-6 pt-4 border-t border-slate-200 space-y-4">
-            <div
-              onClick={() => {
-                if (
-                  selectedTable.activeOrder &&
-                  !selectedTable.orderSummary?.isCompleted
-                ) {
-                  setSelectedTableId(selectedTable.id);
-                  navigate('/tracking');
-                }
-              }}
-              className={`flex items-center justify-between gap-2.5 ${
-                selectedTable.activeOrder && !selectedTable.orderSummary?.isCompleted
-                  ? 'cursor-pointer hover:opacity-85 transition-opacity'
-                  : ''
-              }`}
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 text-orange-600 flex items-center justify-center shrink-0">
-                  <RestaurantTableSvg className="w-6 h-6 sm:w-7 sm:h-7" />
-                </div>
-                <div className="min-w-0">
-                  <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
-                    {selectedTable.name}
-                  </h2>
-                  <p className="text-xs sm:text-sm text-slate-600 font-medium mt-0.5 truncate">
-                    {getTableSubtitleText(selectedTable)}
-                  </p>
-                </div>
-              </div>
-
-              {selectedTable.activeOrder && (
-                <span className="text-sm sm:text-base font-extrabold text-orange-600 shrink-0">
-                  {formatCurrency(selectedTable.orderSummary.subtotal)}
-                </span>
-              )}
-            </div>
-
-            {/* Tóm tắt gọn đơn hàng đang mở (nhấn vào để chuyển sang Theo dõi món của bàn đó) */}
-            {selectedTable.activeOrder && (
-              <div
-                onClick={() => {
-                  setSelectedTableId(selectedTable.id);
-                  navigate('/tracking');
-                }}
-                className="divide-y divide-slate-200 cursor-pointer"
-              >
-                {selectedTable.activeOrder.items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between gap-2 py-2.5 hover:bg-slate-50 transition-colors text-xs sm:text-sm"
-                  >
-                    <span
-                      className={`font-semibold truncate ${
-                        item.status === 'CANCELLED'
-                          ? 'line-through text-slate-400'
-                          : 'text-slate-800'
-                      }`}
-                    >
-                      {item.name} × {item.quantity}
-                    </span>
-                    <DishStatusBadge status={item.status} compact />
+        {/* Khung chi tiết bàn luôn bám sát mép dưới màn hình ở mọi kích thước */}
+        {isDetailOpen && selectedTable && (
+          <div className="fixed bottom-16 md:bottom-0 left-0 md:left-28 lg:left-56 right-0 z-30 bg-white border-t border-slate-200 px-4 sm:px-6 py-4 animate-fade-in">
+            <div className="max-w-2xl mx-auto space-y-3.5">
+              <div className="flex items-center justify-between gap-2.5">
+                <div
+                  onClick={() => {
+                    if (
+                      selectedTable.activeOrder &&
+                      !selectedTable.orderSummary?.isCompleted
+                    ) {
+                      setSelectedTableId(selectedTable.id);
+                      navigate('/tracking');
+                    }
+                  }}
+                  className={`flex items-center gap-3 min-w-0 flex-1 ${
+                    selectedTable.activeOrder && !selectedTable.orderSummary?.isCompleted
+                      ? 'cursor-pointer hover:opacity-85 transition-opacity'
+                      : ''
+                  }`}
+                >
+                  <div className="w-10 h-10 sm:w-11 sm:h-11 text-orange-600 flex items-center justify-center shrink-0">
+                    <RestaurantTableSvg className="w-6 h-6 sm:w-7 sm:h-7" />
                   </div>
-                ))}
+                  <div className="min-w-0">
+                    <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
+                      {selectedTable.name}
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-600 font-medium mt-0.5 truncate">
+                      {getTableSubtitleText(selectedTable)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  {selectedTable.activeOrder && (
+                    <span className="text-sm sm:text-base font-extrabold text-orange-600">
+                      {formatCurrency(selectedTable.orderSummary.subtotal)}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsDetailOpen(false)}
+                    className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                    aria-label="Đóng chi tiết bàn"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
-            )}
 
-            {/* Hai nút chính: Gọi món & Thanh toán */}
-            <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-              <button
-                onClick={() => navigate(`/menu/${selectedTable.id}`)}
-                className="py-3 px-3 sm:px-4 rounded-xl bg-slate-100 hover:bg-orange-50 text-orange-600 font-bold text-xs sm:text-base flex items-center justify-center gap-1.5 sm:gap-2 transition-all active:scale-[0.99] cursor-pointer"
-              >
-                <Utensils className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
-                <span>Gọi món</span>
-              </button>
+              {/* Tóm tắt gọn đơn hàng đang mở (nhấn vào để chuyển sang Theo dõi món của bàn đó) */}
+              {selectedTable.activeOrder && (
+                <div
+                  onClick={() => {
+                    setSelectedTableId(selectedTable.id);
+                    navigate('/tracking');
+                  }}
+                  className="max-h-40 overflow-y-auto divide-y divide-slate-200 cursor-pointer"
+                >
+                  {selectedTable.activeOrder.items.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between gap-2 py-2 hover:bg-slate-50 transition-colors text-xs sm:text-sm"
+                    >
+                      <span
+                        className={`font-semibold truncate ${
+                          item.status === 'CANCELLED'
+                            ? 'line-through text-slate-400'
+                            : 'text-slate-800'
+                        }`}
+                      >
+                        {item.name} × {item.quantity}
+                      </span>
+                      <DishStatusBadge status={item.status} compact />
+                    </div>
+                  ))}
+                </div>
+              )}
 
-              <button
-                onClick={() => {
-                  if (!selectedTable.activeOrder) {
-                    showToast(`${selectedTable.name} chưa có đơn hàng.`, 'error');
-                    return;
-                  }
-                  navigate(`/payment/${selectedTable.id}`);
-                }}
-                disabled={!selectedTable.activeOrder}
-                className={`py-3 px-3 sm:px-4 rounded-xl font-bold text-xs sm:text-base flex items-center justify-center gap-1.5 sm:gap-2 transition-all ${
-                  selectedTable.activeOrder
-                    ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-md shadow-orange-500/25 active:scale-[0.99] cursor-pointer'
-                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                }`}
-              >
-                <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
-                <span>Thanh toán</span>
-              </button>
+              {/* Hai nút chính: Gọi món & Thanh toán */}
+              <div className="grid grid-cols-2 gap-2.5 sm:gap-3 pt-1">
+                <button
+                  onClick={() => navigate(`/menu/${selectedTable.id}`)}
+                  className="py-3 px-3 sm:px-4 rounded-xl bg-slate-100 hover:bg-orange-50 text-orange-600 font-bold text-xs sm:text-base flex items-center justify-center gap-1.5 sm:gap-2 transition-all active:scale-[0.99] cursor-pointer"
+                >
+                  <Utensils className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                  <span>Gọi món</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    if (!selectedTable.activeOrder) {
+                      showToast(`${selectedTable.name} chưa có đơn hàng.`, 'error');
+                      return;
+                    }
+                    navigate(`/payment/${selectedTable.id}`);
+                  }}
+                  disabled={!selectedTable.activeOrder}
+                  className={`py-3 px-3 sm:px-4 rounded-xl font-bold text-xs sm:text-base flex items-center justify-center gap-1.5 sm:gap-2 transition-all ${
+                    selectedTable.activeOrder
+                      ? 'bg-orange-500 hover:bg-orange-600 text-white active:scale-[0.99] cursor-pointer'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                  <span>Thanh toán</span>
+                </button>
+              </div>
             </div>
           </div>
         )}
