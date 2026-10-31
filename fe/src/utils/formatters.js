@@ -64,17 +64,18 @@ export function getOrderSummary(order) {
   });
 
   const totalDishes = order.items.length;
+  const activeDishes = totalDishes - counts[DISH_STATUS.CANCELLED];
   const servedDishes = counts[DISH_STATUS.SERVED];
   const readyToServeCount = counts[DISH_STATUS.DONE];
   const remainingToServeCount =
     counts[DISH_STATUS.PENDING] + counts[DISH_STATUS.COOKING] + counts[DISH_STATUS.DONE];
 
-  // Quy tắc nghiệp vụ: Chỉ khi tất cả món trong một lần gọi đã chuyển sang trạng thái Đã phục vụ lên bàn
-  // thì lần gọi đó mới có trạng thái Đã xong. Không tự xem món bị hủy là đã phục vụ.
-  const isCompleted = totalDishes > 0 && servedDishes === totalDishes;
+  // Khi không còn món nào đang chờ nấu, đang nấu hoặc chờ mang ra (remainingToServeCount === 0)
+  // thì lần gọi món đó đã được phục vụ xác nhận hoàn thành.
+  const isCompleted = totalDishes > 0 && remainingToServeCount === 0;
 
   const progressPercent =
-    totalDishes > 0 ? Math.round((servedDishes / totalDishes) * 100) : 0;
+    activeDishes > 0 ? Math.round((servedDishes / activeDishes) * 100) : 100;
 
   const overallStatusLabel = isCompleted ? 'Đã xong' : 'Đang phục vụ';
 

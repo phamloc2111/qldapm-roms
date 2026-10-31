@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   Clock,
   CheckCircle2,
-  Info,
   Send,
   Utensils,
   XCircle,
@@ -24,30 +23,76 @@ export default function OrderTrackingPage() {
     selectedTable,
     setSelectedTableId,
     markDishServed,
+    markAllDishesServed,
     cancelDish,
   } = useRoms();
 
   const [viewMode, setViewMode] = useState('BY_DISH');
 
+  // Chỉ hiển thị các bàn có lần gọi món chưa hoàn thành (còn món chưa được phục vụ xác nhận)
   const activeTables = useMemo(
-    () => tables.filter((t) => Boolean(t.activeOrder)),
+    () =>
+      tables.filter(
+        (t) =>
+          Boolean(t.activeOrder) &&
+          !t.orderSummary?.isCompleted &&
+          t.orderSummary?.remainingToServeCount > 0
+      ),
     [tables]
   );
 
   const currentTable = useMemo(() => {
-    if (selectedTable?.activeOrder) return selectedTable;
-    return activeTables[0] || selectedTable || tables[0];
-  }, [selectedTable, activeTables, tables]);
+    if (
+      selectedTable &&
+      activeTables.some((t) => t.id === selectedTable.id)
+    ) {
+      return selectedTable;
+    }
+    return activeTables[0] || null;
+  }, [selectedTable, activeTables]);
 
   const activeOrder = currentTable?.activeOrder || null;
-  const summary = useMemo(() => getOrderSummary(activeOrder), [activeOrder]);
+
+  // Chỉ lấy các lần gọi món (round) chưa hoàn thành của bàn hiện tại;
+  // nếu một lần gọi món đã được phục vụ xác nhận hoàn thành thì không hiển thị trong bảng theo dõi nữa.
+  const trackingOrder = useMemo(() => {
+    if (!activeOrder) return null;
+    const roundsMap = new Map();
+    activeOrder.items.forEach((item) => {
+      const r = item.round || 1;
+      if (!roundsMap.has(r)) roundsMap.set(r, []);
+      roundsMap.get(r).push(item);
+    });
+
+    const uncompletedItems = [];
+    roundsMap.forEach((itemsInRound) => {
+      const hasUnfinished = itemsInRound.some(
+        (i) =>
+          i.status === DISH_STATUS.PENDING ||
+          i.status === DISH_STATUS.COOKING ||
+          i.status === DISH_STATUS.DONE
+      );
+      if (hasUnfinished) {
+        uncompletedItems.push(...itemsInRound);
+      }
+    });
+
+    if (uncompletedItems.length === 0) return null;
+
+    return {
+      ...activeOrder,
+      items: uncompletedItems,
+    };
+  }, [activeOrder]);
+
+  const summary = useMemo(() => getOrderSummary(trackingOrder), [trackingOrder]);
 
   const timelineSteps = useMemo(() => {
-    if (!activeOrder) return [];
-    const hasCookingOrBeyond = activeOrder.items.some((i) =>
+    if (!trackingOrder) return [];
+    const hasCookingOrBeyond = trackingOrder.items.some((i) =>
       [DISH_STATUS.COOKING, DISH_STATUS.DONE, DISH_STATUS.SERVED].includes(i.status)
     );
-    const hasDoneOrServed = activeOrder.items.some((i) =>
+    const hasDoneOrServed = trackingOrder.items.some((i) =>
       [DISH_STATUS.DONE, DISH_STATUS.SERVED].includes(i.status)
     );
     const isAllServed = summary.isCompleted;
@@ -56,29 +101,29 @@ export default function OrderTrackingPage() {
       {
         key: 'ordered',
         label: 'Gọi món',
-        time: activeOrder.createdAt ? `(${activeOrder.createdAt})` : '',
+        time: trackingOrder.createdAt ? `(${trackingOrder.createdAt})` : '',
         done: true,
       },
       {
         key: 'cooking',
         label: 'Đang chế biến',
-        time: activeOrder.cookingStartedAt ? `(${activeOrder.cookingStartedAt})` : '',
+        time: trackingOrder.cookingStartedAt ? `(${trackingOrder.cookingStartedAt})` : '',
         done: hasCookingOrBeyond,
       },
       {
         key: 'cooked',
         label: 'Đã xong',
-        time: activeOrder.cookedAt ? `(${activeOrder.cookedAt})` : '',
+        time: trackingOrder.cookedAt ? `(${trackingOrder.cookedAt})` : '',
         done: hasDoneOrServed,
       },
       {
         key: 'served',
         label: 'Phục vụ',
-        time: isAllServed && activeOrder.servedAt ? `(${activeOrder.servedAt})` : '',
+        time: isAllServed && trackingOrder.servedAt ? `(${trackingOrder.servedAt})` : '',
         done: isAllServed,
       },
     ];
-  }, [activeOrder, summary]);
+  }, [trackingOrder, summary]);
 
   const getTimelineNodeStyle = (status) => {
     switch (status) {
@@ -99,16 +144,15 @@ export default function OrderTrackingPage() {
 
   return (
     <div className="max-w-2xl w-full min-w-0 mx-auto space-y-4 sm:space-y-5 animate-fade-in">
-      {/* Thanh chọn nhanh giữa các bàn đang có đơn mở */}
-      {activeTables.length > 1 && (
-        <div className="flex flex-wrap items-center gap-2 bg-white rounded-2xl p-3 shadow-2xs">
+      {activeTables.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 bg-white p-3.5 sm:p-4 shadow-2xs">
           {activeTables.map((t) => {
             const isSelected = currentTable?.id === t.id;
             return (
               <button
                 key={t.id}
                 onClick={() => setSelectedTableId(t.id)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`px-5 py-2.5 sm:px-6 sm:py-3 rounded-xl text-sm sm:text-base font-extrabold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
                   isSelected
                     ? 'bg-orange-500 text-white'
                     : 'bg-slate-100 text-slate-700 hover:bg-orange-50 hover:text-orange-600'
@@ -122,8 +166,7 @@ export default function OrderTrackingPage() {
       )}
 
       {/* Khung chính Theo dõi món */}
-      <div className="w-full min-w-0 bg-white rounded-3xl p-4 sm:p-6 shadow-sm space-y-5">
-        {/* Header: <- Theo dõi món & Nút chuyển chế độ [Theo món | Tổng thể] */}
+      <div className="w-full min-w-0 bg-white p-4 sm:p-6 shadow-sm space-y-5">
         <div className="flex items-center justify-between gap-2.5 flex-wrap">
           <div className="flex items-center gap-2">
             <button
@@ -138,60 +181,62 @@ export default function OrderTrackingPage() {
             </h1>
           </div>
 
-          <div className="inline-flex items-center bg-slate-100 p-1 rounded-full">
-            <button
-              onClick={() => setViewMode('BY_DISH')}
-              className={`px-3.5 sm:px-5 py-1.5 rounded-full text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                viewMode === 'BY_DISH'
-                  ? 'bg-orange-500 text-white'
-                  : 'text-slate-700 hover:text-orange-600'
-              }`}
-            >
-              Theo món
-            </button>
-            <button
-              onClick={() => setViewMode('OVERALL')}
-              className={`px-3.5 sm:px-5 py-1.5 rounded-full text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                viewMode === 'OVERALL'
-                  ? 'bg-orange-500 text-white'
-                  : 'text-slate-700 hover:text-orange-600'
-              }`}
-            >
-              Tổng thể
-            </button>
-          </div>
+          {trackingOrder && (
+            <div className="inline-flex items-center bg-slate-100 p-1 rounded-full">
+              <button
+                onClick={() => setViewMode('BY_DISH')}
+                className={`px-3.5 sm:px-5 py-1.5 rounded-full text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                  viewMode === 'BY_DISH'
+                    ? 'bg-orange-500 text-white'
+                    : 'text-slate-700 hover:text-orange-600'
+                }`}
+              >
+                Theo món
+              </button>
+              <button
+                onClick={() => setViewMode('OVERALL')}
+                className={`px-3.5 sm:px-5 py-1.5 rounded-full text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                  viewMode === 'OVERALL'
+                    ? 'bg-orange-500 text-white'
+                    : 'text-slate-700 hover:text-orange-600'
+                }`}
+              >
+                Tổng thể
+              </button>
+            </div>
+          )}
         </div>
 
-        {!activeOrder ? (
+        {!trackingOrder ? (
           <div className="py-12 text-center space-y-3">
             <button
-              onClick={() => navigate(`/menu/${currentTable?.id || 'T1'}`)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-orange-500 text-white font-bold text-sm cursor-pointer"
+              onClick={() => navigate('/tables')}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-500 text-white font-bold text-sm cursor-pointer"
             >
               <PlusCircle className="w-4 h-4" />
-              <span>Gọi món</span>
+              <span>Chọn bàn gọi món</span>
             </button>
           </div>
         ) : viewMode === 'BY_DISH' ? (
           /* CHẾ ĐỘ 1: THEO MÓN */
           <div className="space-y-5 animate-fade-in">
-            <div className="rounded-2xl bg-[#FFF3E6] p-3.5 sm:p-5 flex items-center justify-between gap-3 flex-wrap">
+            <div className="bg-[#FFF3E6] p-3.5 sm:p-5 flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-orange-500/15 text-orange-600 flex items-center justify-center shrink-0">
+                <div className="w-11 h-11 sm:w-12 sm:h-12 bg-orange-500/15 text-orange-600 flex items-center justify-center shrink-0">
                   <RestaurantTableSvg className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
                 <div>
                   <h2 className="text-base sm:text-xl font-extrabold text-slate-900">
-                    {activeOrder.tableName}
+                    {trackingOrder.tableName}
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-600 font-medium mt-0.5">
-                    Đơn {activeOrder.code} • {activeOrder.createdAt}
+                    Đơn {trackingOrder.code} • {trackingOrder.createdAt}
                   </p>
                 </div>
               </div>
 
               <span
-                className={`inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-bold ${
+                className={`inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 text-xs sm:text-sm font-bold ${
                   summary.isCompleted
                     ? 'bg-emerald-100 text-emerald-800'
                     : 'bg-orange-200/60 text-orange-700'
@@ -206,118 +251,112 @@ export default function OrderTrackingPage() {
               </span>
             </div>
 
-            {/* Danh sách từng món kèm trục Timeline dọc */}
-            <div className="relative pl-6 sm:pl-8 space-y-3.5 before:content-[''] before:absolute before:left-2.5 sm:before:left-3.5 before:top-6 before:bottom-6 before:w-0.5 before:bg-slate-200">
-              {activeOrder.items.map((item) => {
-                const isHighlightCard =
-                  item.status === DISH_STATUS.PENDING ||
-                  item.status === DISH_STATUS.DONE;
+            {/* Danh sách từng món kèm trục Timeline dọc: mỗi thông tin 1 hàng theo thứ tự Tên món, Số lượng, Ghi chú, Trạng thái */}
+            <div className="relative pl-6 sm:pl-8 divide-y divide-slate-200 before:content-[''] before:absolute before:left-2.5 sm:before:left-3.5 before:top-6 before:bottom-6 before:w-0.5 before:bg-slate-200">
+              {trackingOrder.items.map((item) => (
+                <div key={item.id} className="relative min-w-0 py-3.5 first:pt-1 last:pb-1">
+                  <span
+                    className={`absolute -left-6 sm:-left-8 top-6 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold z-10 ${getTimelineNodeStyle(
+                      item.status
+                    )}`}
+                  >
+                    {item.status === DISH_STATUS.SERVED ||
+                    item.status === DISH_STATUS.DONE ||
+                    item.status === DISH_STATUS.COOKING ? (
+                      <Check className="w-3 h-3 stroke-[3]" />
+                    ) : (
+                      <span className="w-2 h-2 rounded-full bg-white" />
+                    )}
+                  </span>
 
-                return (
-                  <div key={item.id} className="relative min-w-0">
-                    <span
-                      className={`absolute -left-6 sm:-left-8 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold z-10 ${getTimelineNodeStyle(
-                        item.status
-                      )}`}
-                    >
-                      {item.status === DISH_STATUS.SERVED ||
-                      item.status === DISH_STATUS.DONE ||
-                      item.status === DISH_STATUS.COOKING ? (
-                        <Check className="w-3 h-3 stroke-[3]" />
-                      ) : (
-                        <span className="w-2 h-2 rounded-full bg-white" />
-                      )}
-                    </span>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        className="w-15 h-15 sm:w-16 sm:h-16 rounded-none object-cover shrink-0 bg-slate-100 mt-0.5"
+                      />
+                      <div className="min-w-0 flex-1 space-y-1">
+                        {/* Hàng 1: Tên món */}
+                        <h3
+                          className={`text-sm sm:text-base font-extrabold leading-snug ${
+                            item.status === DISH_STATUS.CANCELLED
+                              ? 'line-through text-slate-400'
+                              : 'text-slate-900'
+                          }`}
+                        >
+                          {item.name}
+                        </h3>
 
-                    <div
-                      className={`rounded-2xl p-3 sm:p-4 transition-all ${
-                        item.status === DISH_STATUS.DONE
-                          ? 'bg-emerald-50/70'
-                          : isHighlightCard
-                          ? 'bg-[#FFF6EC]'
-                          : item.status === DISH_STATUS.CANCELLED
-                          ? 'bg-rose-50/50 opacity-80'
-                          : 'bg-slate-50/80'
-                      }`}
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <img
-                            src={item.image}
-                            alt={item.name}
-                            className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover shrink-0 bg-slate-100"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <h3
-                              className={`text-sm sm:text-base font-extrabold ${
-                                item.status === DISH_STATUS.CANCELLED
-                                  ? 'line-through text-slate-400'
-                                  : 'text-slate-900'
-                              }`}
-                            >
-                              {item.name}
-                            </h3>
+                        {/* Hàng 2: Số lượng */}
+                        <p className="text-xs sm:text-sm text-slate-600 font-medium">
+                          Số lượng: {item.quantity}
+                        </p>
 
-                            <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-                              SL: {item.quantity}
-                              {item.note ? (
-                                <span> • Ghi chú: {item.note}</span>
-                              ) : null}
-                            </p>
-                          </div>
-                        </div>
+                        {/* Hàng 3: Ghi chú */}
+                        {item.note && (
+                          <p className="text-xs sm:text-sm text-slate-500">
+                            Ghi chú: {item.note}
+                          </p>
+                        )}
 
-                        <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2 flex-wrap shrink-0 pt-1 sm:pt-0">
+                        {/* Hàng 4: Trạng thái */}
+                        <div className="pt-0.5">
                           <DishStatusBadge status={item.status} />
-
-                          <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                            {item.status === DISH_STATUS.DONE && (
-                              <button
-                                onClick={() => markDishServed(activeOrder.id, item.id)}
-                                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                                <span>Xác nhận đã phục vụ</span>
-                              </button>
-                            )}
-
-                            {item.status === DISH_STATUS.PENDING && (
-                              <button
-                                onClick={() => cancelDish(activeOrder.id, item.id)}
-                                className="px-2.5 py-1.5 rounded-xl bg-rose-100/80 hover:bg-rose-200/80 text-rose-700 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                              >
-                                <XCircle className="w-3.5 h-3.5 shrink-0" />
-                                <span>Hủy món</span>
-                              </button>
-                            )}
-                          </div>
                         </div>
                       </div>
                     </div>
+
+                    <div className="flex items-center gap-1.5 flex-wrap sm:justify-end shrink-0">
+                      {item.status !== DISH_STATUS.SERVED &&
+                        item.status !== DISH_STATUS.CANCELLED && (
+                          <button
+                            onClick={() => markDishServed(trackingOrder.id, item.id)}
+                            className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                          >
+                            <CheckCircle2 className="w-4 h-4 shrink-0" />
+                            <span>Xác nhận đã phục vụ</span>
+                          </button>
+                        )}
+
+                      {item.status === DISH_STATUS.PENDING && (
+                        <button
+                          onClick={() => cancelDish(trackingOrder.id, item.id)}
+                          className="px-3 py-2 rounded-xl bg-rose-100/80 hover:bg-rose-200/80 text-rose-700 text-xs sm:text-sm font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                        >
+                          <XCircle className="w-4 h-4 shrink-0" />
+                          <span>Hủy món</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
 
-            <div className="rounded-2xl bg-[#FFF3E6] p-3.5 px-4 flex items-center justify-center gap-2.5 text-xs sm:text-sm font-semibold text-slate-700">
-              <Info className="w-5 h-5 text-orange-500 shrink-0" />
-              <span>Vui lòng xác nhận đã mang món ra cho khách</span>
-            </div>
+            <button
+              type="button"
+              onClick={() => markAllDishesServed(trackingOrder.id)}
+              className="w-full py-3.5 px-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
+            >
+              <CheckCircle2 className="w-5 h-5 shrink-0" />
+              <span>Xác nhận đã phục vụ tất cả món</span>
+            </button>
           </div>
         ) : (
           /* CHẾ ĐỘ 2: TỔNG THỂ */
           <div className="space-y-6 animate-fade-in">
-            <div className="rounded-2xl bg-[#FFF3E6] p-3.5 sm:p-5 flex items-center justify-between gap-4 flex-wrap">
+            <div className="bg-[#FFF3E6] p-3.5 sm:p-5 flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-3">
-                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-orange-500/15 text-orange-600 flex items-center justify-center shrink-0">
+                <div className="w-11 h-11 sm:w-12 sm:h-12 bg-orange-500/15 text-orange-600 flex items-center justify-center shrink-0">
                   <RestaurantTableSvg className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
                 <div>
                   <h2 className="text-base sm:text-xl font-extrabold text-slate-900">
-                    {activeOrder.tableName}
+                    {trackingOrder.tableName}
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-600 font-medium mt-0.5">
-                    Đơn {activeOrder.code} • {activeOrder.createdAt}
+                    Đơn {trackingOrder.code} • {trackingOrder.createdAt}
                   </p>
                 </div>
               </div>
@@ -415,7 +454,7 @@ export default function OrderTrackingPage() {
               </div>
             </div>
 
-            {/* Số lượng món theo từng trạng thái */}
+            {/* Số lượng món theo từng trạng thái (không bo góc) */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
               {Object.values(DISH_STATUS).map((stKey) => {
                 const meta = DISH_STATUS_META[stKey];
@@ -423,7 +462,7 @@ export default function OrderTrackingPage() {
                 return (
                   <div
                     key={stKey}
-                    className={`p-2.5 rounded-2xl text-center transition-all ${meta.bgClass}`}
+                    className={`p-2.5 text-center transition-all ${meta.bgClass}`}
                   >
                     <p className="text-lg font-extrabold">{count}</p>
                     <p className="text-[11px] font-bold mt-0.5 leading-tight">
@@ -434,43 +473,52 @@ export default function OrderTrackingPage() {
               })}
             </div>
 
-            {/* Danh sách món thuộc lần gọi */}
+            {/* Danh sách món thuộc lần gọi: mỗi thông tin 1 hàng theo thứ tự Tên món, Số lượng, Ghi chú, Trạng thái */}
             <div className="space-y-3">
               <h3 className="text-sm sm:text-base font-extrabold text-slate-900 flex items-center gap-2">
                 <Utensils className="w-4 h-4 text-orange-500 shrink-0" />
                 <span>Danh sách món</span>
               </h3>
 
-              <div className="space-y-2.5">
-                {activeOrder.items.map((item) => (
+              <div className="divide-y divide-slate-200">
+                {trackingOrder.items.map((item) => (
                   <div
                     key={item.id}
-                    className="p-3 rounded-2xl bg-slate-50 flex items-center justify-between gap-3 flex-wrap"
+                    className="py-3.5 first:pt-1 last:pb-1 flex items-start gap-3"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl object-cover shrink-0 bg-slate-100"
-                      />
-                      <div className="min-w-0">
-                        <p
-                          className={`text-sm sm:text-base font-extrabold truncate ${
-                            item.status === DISH_STATUS.CANCELLED
-                              ? 'line-through text-slate-400'
-                              : 'text-slate-900'
-                          }`}
-                        >
-                          {item.name}
-                        </p>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          SL: {item.quantity}
-                        </p>
-                      </div>
-                    </div>
+                    <img
+                      src={item.image}
+                      alt={item.name}
+                      className="w-15 h-15 sm:w-16 sm:h-16 rounded-none object-cover shrink-0 bg-slate-100 mt-0.5"
+                    />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      {/* Hàng 1: Tên món */}
+                      <p
+                        className={`text-sm sm:text-base font-extrabold leading-snug ${
+                          item.status === DISH_STATUS.CANCELLED
+                            ? 'line-through text-slate-400'
+                            : 'text-slate-900'
+                        }`}
+                      >
+                        {item.name}
+                      </p>
 
-                    <div className="flex items-center gap-2 ml-auto flex-wrap justify-end">
-                      <DishStatusBadge status={item.status} />
+                      {/* Hàng 2: Số lượng */}
+                      <p className="text-xs sm:text-sm text-slate-600 font-medium">
+                        Số lượng: {item.quantity}
+                      </p>
+
+                      {/* Hàng 3: Ghi chú */}
+                      {item.note && (
+                        <p className="text-xs sm:text-sm text-slate-500">
+                          Ghi chú: {item.note}
+                        </p>
+                      )}
+
+                      {/* Hàng 4: Trạng thái */}
+                      <div className="pt-0.5">
+                        <DishStatusBadge status={item.status} />
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -480,7 +528,7 @@ export default function OrderTrackingPage() {
             {/* Nút Yêu cầu thanh toán */}
             <button
               onClick={() => navigate(`/payment/${currentTable.id}`)}
-              className="w-full py-3.5 px-6 rounded-2xl bg-orange-50 hover:bg-orange-100 text-orange-600 font-extrabold text-sm sm:text-base flex items-center justify-center gap-2 transition-all cursor-pointer"
+              className="w-full py-3.5 px-6 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-600 font-extrabold text-sm sm:text-base flex items-center justify-center gap-2 transition-all cursor-pointer"
             >
               <Send className="w-4 h-4 shrink-0" />
               <span>Yêu cầu thanh toán</span>

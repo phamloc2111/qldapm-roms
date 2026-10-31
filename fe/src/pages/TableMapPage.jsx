@@ -72,7 +72,7 @@ export default function TableMapPage() {
 
   return (
     <div className="w-full min-w-0 max-w-2xl mx-auto space-y-5 animate-fade-in">
-      <div className="w-full bg-white rounded-3xl p-4 sm:p-6 shadow-sm">
+      <div className="w-full bg-white p-4 sm:p-6 shadow-sm">
         {/* Tiêu đề & nút làm mới */}
         <div className="flex items-center justify-between gap-2 mb-4">
           <h1 className="text-lg sm:text-2xl font-extrabold text-slate-900">
@@ -176,10 +176,25 @@ export default function TableMapPage() {
 
         {/* Khung thao tác của bàn đang chọn */}
         {selectedTable && (
-          <div className="mt-5 sm:mt-6 rounded-2xl bg-[#FFF4E8] p-3.5 sm:p-5 space-y-4">
-            <div className="flex items-center justify-between gap-2.5">
+          <div className="mt-5 sm:mt-6 pt-4 border-t border-slate-200 space-y-4">
+            <div
+              onClick={() => {
+                if (
+                  selectedTable.activeOrder &&
+                  !selectedTable.orderSummary?.isCompleted
+                ) {
+                  setSelectedTableId(selectedTable.id);
+                  navigate('/tracking');
+                }
+              }}
+              className={`flex items-center justify-between gap-2.5 ${
+                selectedTable.activeOrder && !selectedTable.orderSummary?.isCompleted
+                  ? 'cursor-pointer hover:opacity-85 transition-opacity'
+                  : ''
+              }`}
+            >
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-orange-500/15 text-orange-600 flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 text-orange-600 flex items-center justify-center shrink-0">
                   <RestaurantTableSvg className="w-6 h-6 sm:w-7 sm:h-7" />
                 </div>
                 <div className="min-w-0">
@@ -199,13 +214,19 @@ export default function TableMapPage() {
               )}
             </div>
 
-            {/* Tóm tắt gọn đơn hàng đang mở (nếu có) */}
+            {/* Tóm tắt gọn đơn hàng đang mở (nhấn vào để chuyển sang Theo dõi món của bàn đó) */}
             {selectedTable.activeOrder && (
-              <div className="space-y-2 pt-1">
+              <div
+                onClick={() => {
+                  setSelectedTableId(selectedTable.id);
+                  navigate('/tracking');
+                }}
+                className="divide-y divide-slate-200 cursor-pointer"
+              >
                 {selectedTable.activeOrder.items.map((item) => (
                   <div
                     key={item.id}
-                    className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white/80 text-xs sm:text-sm"
+                    className="flex items-center justify-between gap-2 py-2.5 hover:bg-slate-50 transition-colors text-xs sm:text-sm"
                   >
                     <span
                       className={`font-semibold truncate ${
@@ -226,7 +247,7 @@ export default function TableMapPage() {
             <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
               <button
                 onClick={() => navigate(`/menu/${selectedTable.id}`)}
-                className="py-3 px-3 sm:px-4 rounded-xl bg-white hover:bg-orange-50 text-orange-600 font-bold text-xs sm:text-base flex items-center justify-center gap-1.5 sm:gap-2 transition-all shadow-2xs active:scale-[0.99] cursor-pointer"
+                className="py-3 px-3 sm:px-4 rounded-xl bg-slate-100 hover:bg-orange-50 text-orange-600 font-bold text-xs sm:text-base flex items-center justify-center gap-1.5 sm:gap-2 transition-all active:scale-[0.99] cursor-pointer"
               >
                 <Utensils className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
                 <span>Gọi món</span>

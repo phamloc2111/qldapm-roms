@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useMemo, useCallback, useEffect } from 'react';
 import {
   DISH_STATUS,
   INITIAL_ORDERS,
@@ -326,7 +326,7 @@ export function RomsProvider({ children }) {
     [draftCartByTable, tables, orders, showToast]
   );
 
-  // 5. Thao tác trên màn hình Theo dõi món: Xác nhận đã phục vụ (DONE -> SERVED)
+  // 5. Thao tác trên màn hình Theo dõi món: Xác nhận đã phục vụ
   const markDishServed = useCallback(
     (orderId, itemId) => {
       const nowStr = getCurrentTimeStr();
@@ -347,13 +347,17 @@ export function RomsProvider({ children }) {
             };
           });
 
-          const allServed =
+          const allDone =
             updatedItems.length > 0 &&
-            updatedItems.every((i) => i.status === DISH_STATUS.SERVED);
+            updatedItems.every(
+              (i) =>
+                i.status === DISH_STATUS.SERVED ||
+                i.status === DISH_STATUS.CANCELLED
+            );
 
           return {
             ...order,
-            servedAt: allServed ? nowStr : order.servedAt,
+            servedAt: allDone ? nowStr : order.servedAt,
             items: updatedItems,
           };
         })
@@ -365,6 +369,92 @@ export function RomsProvider({ children }) {
     },
     [showToast]
   );
+
+  // Xác nhận đã phục vụ toàn bộ các món chưa hoàn thành của bàn / lần gọi
+  const markAllDishesServed = useCallback(
+    (orderId) => {
+      const nowStr = getCurrentTimeStr();
+      let tableName = '';
+
+      setOrders((prev) =>
+        prev.map((order) => {
+          if (order.id !== orderId) return order;
+          tableName = order.tableName;
+          const updatedItems = order.items.map((item) => {
+            if (
+              item.status === DISH_STATUS.SERVED ||
+              item.status === DISH_STATUS.CANCELLED
+            ) {
+              return item;
+            }
+            return {
+              ...item,
+              status: DISH_STATUS.SERVED,
+              updatedAt: nowStr,
+            };
+          });
+
+          return {
+            ...order,
+            cookingStartedAt: order.cookingStartedAt || nowStr,
+            cookedAt: order.cookedAt || nowStr,
+            servedAt: nowStr,
+            items: updatedItems,
+          };
+        })
+      );
+
+      if (tableName) {
+        showToast(`Đã xác nhận hoàn thành phục vụ các món cho ${tableName}.`, 'success');
+      }
+    },
+    [showToast]
+  );
+
+  // Tự động cập nhật tiến độ bếp (Chờ nấu -> Đang nấu -> Đã nấu xong) cho các món mới gọi
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const nowStr = getCurrentTimeStr();
+      setOrders((prev) => {
+        let changed = false;
+        const nextOrders = prev.map((order) => {
+          const idxToAdvance = order.items.findIndex(
+            (i) =>
+              i.status === DISH_STATUS.PENDING ||
+              i.status === DISH_STATUS.COOKING
+          );
+          if (idxToAdvance === -1 || changed) return order;
+
+          changed = true;
+          const targetItem = order.items[idxToAdvance];
+          const nextStatus =
+            targetItem.status === DISH_STATUS.PENDING
+              ? DISH_STATUS.COOKING
+              : DISH_STATUS.DONE;
+
+          const updatedItems = order.items.map((item, idx) =>
+            idx === idxToAdvance
+              ? { ...item, status: nextStatus, updatedAt: nowStr }
+              : item
+          );
+
+          return {
+            ...order,
+            cookingStartedAt:
+              nextStatus === DISH_STATUS.COOKING && !order.cookingStartedAt
+                ? nowStr
+                : order.cookingStartedAt,
+            cookedAt:
+              nextStatus === DISH_STATUS.DONE ? nowStr : order.cookedAt,
+            items: updatedItems,
+          };
+        });
+        return changed ? nextOrders : prev;
+      });
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   // 6. Thao tác trên màn hình Theo dõi món: Hủy món đang chờ chế biến (PENDING -> CANCELLED)
   const cancelDish = useCallback(
@@ -506,6 +596,7 @@ export function RomsProvider({ children }) {
       clearCart,
       submitCartToKitchen,
       markDishServed,
+      markAllDishesServed,
       cancelDish,
       simulateKitchenStep,
       requestPayment,
@@ -534,6 +625,7 @@ export function RomsProvider({ children }) {
       clearCart,
       submitCartToKitchen,
       markDishServed,
+      markAllDishesServed,
       cancelDish,
       simulateKitchenStep,
       requestPayment,
