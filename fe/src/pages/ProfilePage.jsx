@@ -8,10 +8,8 @@ export default function ProfilePage() {
   const navigate = useNavigate();
 
   const user = currentUser || {
-    fullName: 'Nguyễn Văn A',
     username: 'nguyenvana',
     roleDisplay: 'Phục vụ',
-    title: 'Nhân viên Phục vụ',
     avatarInitial: 'P',
   };
 
@@ -32,10 +30,10 @@ export default function ProfilePage() {
         </div>
         <div>
           <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900">
-            {user.fullName}
+            {user.username}
           </h2>
           <p className="text-sm sm:text-base font-bold text-orange-600 mt-0.5">
-            {user.title}
+            {user.roleDisplay}
           </p>
         </div>
       </div>

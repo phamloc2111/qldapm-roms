@@ -162,7 +162,7 @@ export function RomsProvider({ children }) {
       }
 
       setCurrentUser(found);
-      showToast(`Xin chào, ${found.fullName}! Chúc bạn ca làm việc hiệu quả.`);
+      showToast(`Xin chào, ${found.username}! Chúc bạn ca làm việc hiệu quả.`);
       return { ok: true, user: found };
     },
     [showToast]
@@ -273,8 +273,6 @@ export function RomsProvider({ children }) {
       if (!targetTable) return null;
 
       const nowStr = getCurrentTimeStr();
-      const shortWaiterName =
-        currentUser?.fullName?.trim().split(/\s+/).pop() || 'An';
       let resultOrder = null;
       let isAddingToExisting = false;
 
@@ -347,7 +345,6 @@ export function RomsProvider({ children }) {
           code: newOrderCode,
           tableId: targetTable.id,
           tableName: targetTable.name,
-          waiterName: shortWaiterName,
           priority: 'NORMAL',
           fifoOrder: roundFifo,
           guests,

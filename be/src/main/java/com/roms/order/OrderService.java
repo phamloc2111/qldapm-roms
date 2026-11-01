@@ -56,7 +56,7 @@ public class OrderService {
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
                         "Món " + menuItem.getName() + " hiện đã hết hàng");
             }
-            order.addItem(new OrderItem(menuItem, requestedItem.quantity(), requestedItem.note()));
+            order.addItem(new OrderItem(menuItem, requestedItem.quantity(), requestedItem.note(), 1));
         }
 
         order.submit();
@@ -75,6 +75,7 @@ public class OrderService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Không thể thêm món vào order đã thanh toán hoặc đã đóng");
         }
 
+        int currentRound = order.nextRound();
         for (CreateOrderItem requestedItem : requestedItems) {
             MenuItem menuItem = menuItemRepository.findById(requestedItem.menuItemId())
                     .filter(item -> item.isActive() && item.getCategory().isActive())
@@ -83,7 +84,7 @@ public class OrderService {
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
                         "Món " + menuItem.getName() + " hiện đã hết hàng");
             }
-            order.addItem(new OrderItem(menuItem, requestedItem.quantity(), requestedItem.note()));
+            order.addItem(new OrderItem(menuItem, requestedItem.quantity(), requestedItem.note(), currentRound));
         }
 
         order.refreshStatus();
@@ -100,6 +101,14 @@ public class OrderService {
         realtimeEventService.itemStatusChanged(savedOrder.getId(), response);
         realtimeEventService.tableStatusChanged(table.getId(), tableStatusPayload(table));
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderResponse> getActiveOrders() {
+        return orderRepository.findAllByStatusInOrderBySubmittedAtAsc(ACTIVE_STATUSES)
+                .stream()
+                .map(OrderResponse::from)
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -152,7 +161,7 @@ public class OrderService {
     @Transactional(readOnly = true)
     public List<OrderResponse> getKitchenQueue() {
         return orderRepository.findAllByStatusInOrderBySubmittedAtAsc(
-                        Set.of(OrderStatus.SUBMITTED, OrderStatus.IN_PROGRESS))
+                        Set.of(OrderStatus.SUBMITTED, OrderStatus.IN_PROGRESS, OrderStatus.READY))
                 .stream()
                 .map(OrderResponse::from)
                 .toList();

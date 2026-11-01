@@ -43,6 +43,9 @@ public class OrderItem {
     @Column(length = 300)
     private String note;
 
+    @Column(name = "round_number", nullable = false)
+    private int roundNumber = 1;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private OrderItemStatus status = OrderItemStatus.PENDING;
@@ -54,11 +57,16 @@ public class OrderItem {
     }
 
     public OrderItem(MenuItem menuItem, int quantity, String note) {
+        this(menuItem, quantity, note, 1);
+    }
+
+    public OrderItem(MenuItem menuItem, int quantity, String note, int roundNumber) {
         this.menuItem = menuItem;
         this.itemName = menuItem.getName();
         this.unitPriceVnd = menuItem.getPriceVnd();
         this.quantity = quantity;
         this.note = note;
+        this.roundNumber = Math.max(1, roundNumber);
     }
 
     public UUID getId() {
@@ -87,6 +95,10 @@ public class OrderItem {
 
     public String getNote() {
         return note;
+    }
+
+    public int getRoundNumber() {
+        return roundNumber;
     }
 
     public OrderItemStatus getStatus() {

@@ -45,6 +45,11 @@ public class OrderController {
         return orderService.addItems(id, items);
     }
 
+    @GetMapping("/orders/active")
+    public List<OrderResponse> getActiveOrders() {
+        return orderService.getActiveOrders();
+    }
+
     @GetMapping("/orders/{id}")
     public OrderResponse getOrder(@PathVariable UUID id) {
         return orderService.getOrder(id);

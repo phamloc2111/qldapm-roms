@@ -47,10 +47,8 @@ export default function KitchenPage() {
   } = useRoms();
 
   const user = currentUser || {
-    fullName: 'Lê Hoàng Nam',
     username: 'bep',
     roleDisplay: 'Nhà bếp',
-    title: 'Bếp trưởng điều hành',
     avatarInitial: 'B',
   };
 
@@ -104,7 +102,6 @@ export default function KitchenPage() {
           code: roundNum > 1 ? `${order.code}.${roundNum}` : order.code,
           tableId: order.tableId,
           tableName: order.tableName,
-          waiterName: order.waiterName || 'An',
           priority: order.priority || (roundNum === 1 ? 'PRIORITY' : 'NORMAL'),
           receivedAt,
           fifoKey,
@@ -281,7 +278,7 @@ export default function KitchenPage() {
               className="bg-white shadow-xs flex flex-col justify-between overflow-hidden animate-fade-in"
             >
               <div>
-                {/* Đầu thẻ màu sắc trực quan (thu gọn ~20%): Số đơn + Số bàn + Thời gian chờ + Phục vụ */}
+                {/* Đầu thẻ màu sắc trực quan (thu gọn ~20%): Số đơn + Số bàn + Thời gian chờ */}
                 <div className={`${banner.headerBg} text-white p-2.5 space-y-1.5`}>
                   <div className="flex items-baseline justify-between gap-1.5">
                     <div className="flex items-baseline gap-1 min-w-0">
@@ -297,13 +294,7 @@ export default function KitchenPage() {
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between gap-1.5 text-[11px] font-semibold">
-                    <div className="flex items-center gap-1 opacity-95 truncate">
-                      <Utensils className="w-3 h-3 shrink-0" />
-                      <span className="truncate">
-                        Phục vụ: {ticket.waiterName}
-                      </span>
-                    </div>
+                  <div className="flex items-center justify-end gap-1.5 text-[11px] font-semibold">
                     <span
                       className={`px-2 py-0.5 rounded-full bg-white text-[10px] font-extrabold shrink-0 ${banner.badgeText}`}
                     >
@@ -776,10 +767,10 @@ export default function KitchenPage() {
               </div>
               <div className="min-w-0">
                 <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 truncate">
-                  {user.fullName}
+                  {user.username}
                 </h3>
                 <p className="text-xs sm:text-sm font-bold text-orange-600 mt-0.5">
-                  {user.title}
+                  {user.roleDisplay}
                 </p>
               </div>
             </div>

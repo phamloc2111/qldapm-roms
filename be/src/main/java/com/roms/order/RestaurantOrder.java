@@ -36,6 +36,9 @@ public class RestaurantOrder {
     @Column(nullable = false, length = 30)
     private OrderStatus status = OrderStatus.OPEN;
 
+    @Column(name = "round_count", nullable = false)
+    private int roundCount = 1;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -63,6 +66,15 @@ public class RestaurantOrder {
 
     public OrderStatus getStatus() {
         return status;
+    }
+
+    public int getRoundCount() {
+        return roundCount;
+    }
+
+    public int nextRound() {
+        this.roundCount += 1;
+        return this.roundCount;
     }
 
     public Instant getCreatedAt() {
