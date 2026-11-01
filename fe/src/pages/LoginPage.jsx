@@ -12,11 +12,11 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
 
-    const result = login(username, password);
+    const result = await login(username, password);
     if (!result.ok) {
       setErrorMessage(result.error);
       return;

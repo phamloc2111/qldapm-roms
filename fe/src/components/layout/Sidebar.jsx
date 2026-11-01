@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Home, ListChecks, User, LayoutGrid } from 'lucide-react';
 import { useRoms } from '../../context/RomsContext';
-import { TABLE_STATUS } from '../../data/mockData';
+import { TABLE_STATUS } from '../../utils/constants';
 
 export default function Sidebar() {
   const { tables, selectedTable } = useRoms();

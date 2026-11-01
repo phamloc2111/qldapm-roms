@@ -1,6 +1,6 @@
 import React from 'react';
 import { Clock, ChefHat, CheckCircle2, Check, XCircle } from 'lucide-react';
-import { DISH_STATUS, DISH_STATUS_META } from '../../data/mockData';
+import { DISH_STATUS, DISH_STATUS_META } from '../../utils/constants';
 
 export default function DishStatusBadge({ status, compact = false }) {
   const meta = DISH_STATUS_META[status] || DISH_STATUS_META[DISH_STATUS.PENDING];

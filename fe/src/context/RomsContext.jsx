@@ -1,120 +1,105 @@
-import React, { createContext, useContext, useState, useMemo, useCallback, useEffect } from 'react';
-import {
-  DISH_STATUS,
-  INITIAL_ORDERS,
-  INITIAL_TABLES,
-  MENU_ITEMS,
-  MOCK_USERS,
-} from '../data/mockData';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+  useRef,
+} from 'react';
+import { DISH_STATUS } from '../utils/constants';
 import { getCurrentTimeStr, getDerivedTableInfo } from '../utils/formatters';
 
 const RomsContext = createContext(null);
 
-const STORAGE_KEYS = {
-  TABLES: 'roms_tables_v2',
-  ORDERS: 'roms_orders_v2',
-  MENU: 'roms_menu_v2',
-};
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
 
-function loadFromStorage(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw);
-  } catch {
-    return fallback;
+const SESSION_TOKEN_KEY = 'roms_access_token';
+const SESSION_USER_KEY = 'roms_current_user';
+
+const DEFAULT_DISH_IMAGE =
+  'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=80';
+
+function formatInstantToHHMM(isoStr) {
+  if (!isoStr) return getCurrentTimeStr();
+  const d = new Date(isoStr);
+  if (Number.isNaN(d.getTime())) return String(isoStr);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(
+    d.getMinutes()
+  ).padStart(2, '0')}`;
+}
+
+function getRoleDisplay(role) {
+  switch (role) {
+    case 'KITCHEN':
+      return 'Nhà bếp';
+    case 'WAITER':
+      return 'Phục vụ';
+    case 'CASHIER':
+      return 'Thu ngân';
+    case 'ADMIN':
+      return 'Quản trị';
+    default:
+      return role || 'Nhân viên';
   }
 }
 
+function mapUserView(userDto) {
+  if (!userDto) return null;
+  const username = userDto.username || '';
+  return {
+    id: String(userDto.id),
+    username,
+    role: userDto.role,
+    roleDisplay: getRoleDisplay(userDto.role),
+    avatarInitial: (username[0] || 'U').toUpperCase(),
+    active: Boolean(userDto.active),
+  };
+}
+
+function formatShortOrderCode(orderId) {
+  if (!orderId) return '#0000';
+  const clean = String(orderId).replace(/-/g, '').toUpperCase();
+  return `#${clean.slice(0, 4)}`;
+}
+
+function formatTableShortCode(name) {
+  if (!name) return '';
+  const trimmed = String(name).trim();
+  const withoutPrefix = trimmed.replace(/^bàn\s+/i, '');
+  return withoutPrefix || trimmed;
+}
+
 export function RomsProvider({ children }) {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [tables, setTables] = useState(() =>
-    loadFromStorage(STORAGE_KEYS.TABLES, INITIAL_TABLES)
+  const [accessToken, setAccessToken] = useState(
+    () => sessionStorage.getItem(SESSION_TOKEN_KEY) || ''
   );
-  const [orders, setOrders] = useState(() =>
-    loadFromStorage(STORAGE_KEYS.ORDERS, INITIAL_ORDERS)
-  );
-  const [menuItems, setMenuItems] = useState(() =>
-    loadFromStorage(STORAGE_KEYS.MENU, MENU_ITEMS)
-  );
-  const [selectedTableId, setSelectedTableId] = useState('T4');
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(SESSION_USER_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [rawTables, setRawTables] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [categories, setCategories] = useState([{ id: 'ALL', name: 'Tất cả' }]);
+  const [menuItems, setMenuItems] = useState([]);
+  const [selectedTableId, setSelectedTableId] = useState('');
   const [draftCartByTable, setDraftCartByTable] = useState({});
   const [toast, setToast] = useState(null);
   const [lastSyncTime, setLastSyncTime] = useState(() => getCurrentTimeStr());
-  const [notifications, setNotifications] = useState([
-    {
-      id: 'notif-1',
-      title: 'Bàn T4 có món đã nấu xong',
-      message: 'Súp hải sản (SL: 1) đã sẵn sàng tại quầy bếp.',
-      time: '14:38',
-      tableId: 'T4',
-      unread: true,
-    },
-    {
-      id: 'notif-2',
-      title: 'Bàn T8 đã phục vụ đủ món',
-      message: 'Tất cả 3 món của Đơn #1045 đã phục vụ lên bàn.',
-      time: '14:08',
-      tableId: 'T8',
-      unread: false,
-    },
-  ]);
+  const [notifications, setNotifications] = useState([]);
 
-  // Lưu và đồng bộ realtime giữa các tab trình duyệt (Phục vụ <-> Nhà Bếp)
+  const menuMapRef = useRef(new Map());
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.TABLES, JSON.stringify(tables));
-    } catch {
-      // ignore
-    }
-  }, [tables]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
-      setLastSyncTime(getCurrentTimeStr());
-    } catch {
-      // ignore
-    }
-  }, [orders]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.MENU, JSON.stringify(menuItems));
-      setLastSyncTime(getCurrentTimeStr());
-    } catch {
-      // ignore
-    }
+    const map = new Map();
+    menuItems.forEach((m) => map.set(String(m.id), m));
+    menuMapRef.current = map;
   }, [menuItems]);
-
-  useEffect(() => {
-    const handleStorageChange = (e) => {
-      if (e.key === STORAGE_KEYS.TABLES && e.newValue) {
-        try {
-          setTables(JSON.parse(e.newValue));
-          setLastSyncTime(getCurrentTimeStr());
-        } catch {
-          // ignore
-        }
-      } else if (e.key === STORAGE_KEYS.ORDERS && e.newValue) {
-        try {
-          setOrders(JSON.parse(e.newValue));
-          setLastSyncTime(getCurrentTimeStr());
-        } catch {
-          // ignore
-        }
-      } else if (e.key === STORAGE_KEYS.MENU && e.newValue) {
-        try {
-          setMenuItems(JSON.parse(e.newValue));
-          setLastSyncTime(getCurrentTimeStr());
-        } catch {
-          // ignore
-        }
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ id: Date.now(), message, type });
@@ -125,10 +110,214 @@ export function RomsProvider({ children }) {
 
   const dismissToast = useCallback(() => setToast(null), []);
 
-  // 1. Đăng nhập mô phỏng
+  // Hàm gọi API chuẩn có đính kèm JWT Bearer Token
+  const apiFetch = useCallback(
+    async (path, options = {}, tokenOverride = null) => {
+      const token = tokenOverride ?? accessToken;
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+      };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${API_BASE_URL}${path}`, {
+        ...options,
+        headers,
+      });
+
+      if (response.status === 204) {
+        return null;
+      }
+
+      let data = null;
+      const text = await response.text();
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { message: text };
+        }
+      }
+
+      if (!response.ok) {
+        const errMessage =
+          data?.message ||
+          data?.detail ||
+          data?.error ||
+          `Lỗi kết nối API (${response.status})`;
+        const error = new Error(errMessage);
+        error.status = response.status;
+        throw error;
+      }
+
+      return data;
+    },
+    [accessToken]
+  );
+
+  // Chuyển đổi OrderResponse từ Backend sang cấu trúc Order của Frontend
+  const mapOrderFromApi = useCallback((orderDto, index = 0) => {
+    if (!orderDto) return null;
+    const submittedTimeMs = orderDto.submittedAt
+      ? new Date(orderDto.submittedAt).getTime()
+      : orderDto.createdAt
+      ? new Date(orderDto.createdAt).getTime()
+      : Date.now() + index;
+
+    const mappedItems = (orderDto.items || []).map((itemDto) => {
+      const matchedDish = menuMapRef.current.get(String(itemDto.menuItemId));
+      const itemCreatedMs = itemDto.createdAt
+        ? new Date(itemDto.createdAt).getTime()
+        : submittedTimeMs;
+
+      return {
+        id: String(itemDto.id),
+        dishId: String(itemDto.menuItemId),
+        name: itemDto.name,
+        price: Number(itemDto.unitPriceVnd) || 0,
+        quantity: Number(itemDto.quantity) || 1,
+        note: itemDto.note || '',
+        status: itemDto.status || DISH_STATUS.PENDING,
+        orderedAt: formatInstantToHHMM(
+          itemDto.createdAt || orderDto.submittedAt || orderDto.createdAt
+        ),
+        updatedAt: formatInstantToHHMM(itemDto.createdAt || orderDto.submittedAt),
+        round: Number(itemDto.round) || 1,
+        roundFifo: itemCreatedMs,
+        image: matchedDish?.image || DEFAULT_DISH_IMAGE,
+      };
+    });
+
+    return {
+      id: String(orderDto.id),
+      code: formatShortOrderCode(orderDto.id),
+      tableId: String(orderDto.tableId),
+      tableName: orderDto.tableName || 'Bàn',
+      status: orderDto.status,
+      priority: index % 2 === 0 ? 'PRIORITY' : 'NORMAL',
+      fifoOrder: submittedTimeMs,
+      guests: 2,
+      createdAt: formatInstantToHHMM(orderDto.submittedAt || orderDto.createdAt),
+      paymentRequested: orderDto.status === 'PAYMENT_REQUESTED',
+      roundCount: Number(orderDto.roundCount) || 1,
+      items: mappedItems,
+    };
+  }, []);
+
+  // Tải đồng bộ dữ liệu từ Backend theo vai trò tài khoản hiện tại
+  const refreshData = useCallback(
+    async (tokenOverride = null, userOverride = null) => {
+      const token = tokenOverride ?? accessToken;
+      const user = userOverride ?? currentUser;
+      if (!token || !user) return;
+
+      try {
+        // 1. Lấy Danh mục & Thực đơn (cả WAITER, KITCHEN, ADMIN đều có quyền)
+        const [catsDto, itemsDto] = await Promise.all([
+          apiFetch('/categories', { method: 'GET' }, token),
+          apiFetch('/menu-items', { method: 'GET' }, token),
+        ]);
+
+        const mappedCategories = [
+          { id: 'ALL', name: 'Tất cả' },
+          ...(catsDto || []).map((c) => ({
+            id: String(c.id),
+            name: c.name,
+          })),
+        ];
+        setCategories(mappedCategories);
+
+        const mappedMenu = (itemsDto || []).map((item) => ({
+          id: String(item.id),
+          categoryId: String(item.categoryId),
+          categoryName: item.categoryName || '',
+          name: item.name,
+          description: item.description || '',
+          price: Number(item.priceVnd) || 0,
+          image: item.imageUrl || DEFAULT_DISH_IMAGE,
+          available: Boolean(item.available),
+        }));
+        setMenuItems(mappedMenu);
+
+        const localMenuMap = new Map();
+        mappedMenu.forEach((m) => localMenuMap.set(String(m.id), m));
+        menuMapRef.current = localMenuMap;
+
+        // 2. Nếu là WAITER hoặc ADMIN: Lấy danh sách bàn & danh sách đơn đang hoạt động
+        if (user.role === 'WAITER' || user.role === 'ADMIN') {
+          const [tablesDto, activeOrdersDto] = await Promise.all([
+            apiFetch('/tables', { method: 'GET' }, token),
+            apiFetch('/orders/active', { method: 'GET' }, token),
+          ]);
+
+          const mappedOrders = (activeOrdersDto || []).map((o, idx) =>
+            mapOrderFromApi(o, idx)
+          );
+          setOrders(mappedOrders);
+
+          const mappedTables = (tablesDto || []).map((t) => {
+            const tId = String(t.id);
+            const openOrder = mappedOrders.find((o) => o.tableId === tId);
+            return {
+              id: tId,
+              code: formatTableShortCode(t.name),
+              name: t.name,
+              capacity: Number(t.capacity) || 4,
+              guests: Number(t.capacity) || 2,
+              status: t.status,
+              activeOrderId: openOrder ? openOrder.id : null,
+            };
+          });
+          setRawTables(mappedTables);
+          setSelectedTableId((prev) =>
+            prev && mappedTables.some((t) => t.id === prev)
+              ? prev
+              : mappedTables[0]?.id || ''
+          );
+        }
+
+        // 3. Nếu là KITCHEN: Lấy hàng đợi đơn của Nhà Bếp (/api/v1/kitchen/queue)
+        if (user.role === 'KITCHEN') {
+          const queueDto = await apiFetch(
+            '/kitchen/queue',
+            { method: 'GET' },
+            token
+          );
+          const mappedQueue = (queueDto || []).map((o, idx) =>
+            mapOrderFromApi(o, idx)
+          );
+          setOrders(mappedQueue);
+        }
+
+        setLastSyncTime(getCurrentTimeStr());
+      } catch (err) {
+        if (err.status === 401) {
+          sessionStorage.removeItem(SESSION_TOKEN_KEY);
+          sessionStorage.removeItem(SESSION_USER_KEY);
+          setAccessToken('');
+          setCurrentUser(null);
+        }
+      }
+    },
+    [accessToken, currentUser, apiFetch, mapOrderFromApi]
+  );
+
+  // Tự động tải dữ liệu khi đã đăng nhập và đồng bộ định kỳ mỗi 3 giây
+  useEffect(() => {
+    if (!accessToken || !currentUser) return;
+    refreshData();
+    const interval = setInterval(() => {
+      refreshData();
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [accessToken, currentUser, refreshData]);
+
+  // 1. Đăng nhập qua API POST /api/v1/auth/login & GET /api/v1/auth/me
   const login = useCallback(
-    (username, password) => {
-      const trimmedUsername = (username || '').trim().toLowerCase();
+    async (username, password) => {
+      const trimmedUsername = (username || '').trim();
       const rawPassword = password || '';
 
       if (!trimmedUsername && !rawPassword) {
@@ -150,36 +339,77 @@ export function RomsProvider({ children }) {
         };
       }
 
-      const found = MOCK_USERS.find(
-        (u) => u.username.toLowerCase() === trimmedUsername && u.password === rawPassword
-      );
+      try {
+        const tokenRes = await apiFetch(
+          '/auth/login',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              username: trimmedUsername,
+              password: rawPassword,
+            }),
+          },
+          ''
+        );
 
-      if (!found) {
+        const token = tokenRes?.accessToken;
+        if (!token) {
+          return {
+            ok: false,
+            error: 'Không nhận được token xác thực từ máy chủ.',
+          };
+        }
+
+        const meDto = await apiFetch('/auth/me', { method: 'GET' }, token);
+        const mappedUser = mapUserView(meDto);
+
+        sessionStorage.setItem(SESSION_TOKEN_KEY, token);
+        sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(mappedUser));
+        setAccessToken(token);
+        setCurrentUser(mappedUser);
+
+        await refreshData(token, mappedUser);
+
+        showToast(
+          `Xin chào, ${mappedUser.username}! Chúc bạn ca làm việc hiệu quả.`
+        );
+        return { ok: true, user: mappedUser };
+      } catch (err) {
+        const msg =
+          err.status === 401
+            ? 'Tên đăng nhập hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.'
+            : err.message || 'Không thể kết nối tới máy chủ Backend.';
         return {
           ok: false,
-          error: 'Tên đăng nhập hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.',
+          error: msg,
         };
       }
-
-      setCurrentUser(found);
-      showToast(`Xin chào, ${found.username}! Chúc bạn ca làm việc hiệu quả.`);
-      return { ok: true, user: found };
     },
-    [showToast]
+    [apiFetch, refreshData, showToast]
   );
 
   const logout = useCallback(() => {
+    sessionStorage.removeItem(SESSION_TOKEN_KEY);
+    sessionStorage.removeItem(SESSION_USER_KEY);
+    setAccessToken('');
     setCurrentUser(null);
+    setRawTables([]);
+    setOrders([]);
+    setDraftCartByTable({});
     showToast('Đã đăng xuất khỏi hệ thống ROMS.', 'info');
   }, [showToast]);
 
   // 2. Danh sách bàn kèm trạng thái suy diễn tự động
   const enrichedTables = useMemo(() => {
-    return tables.map((table) => getDerivedTableInfo(table, orders));
-  }, [tables, orders]);
+    return rawTables.map((table) => getDerivedTableInfo(table, orders));
+  }, [rawTables, orders]);
 
   const selectedTable = useMemo(() => {
-    return enrichedTables.find((t) => t.id === selectedTableId) || enrichedTables[0] || null;
+    return (
+      enrichedTables.find((t) => t.id === selectedTableId) ||
+      enrichedTables[0] ||
+      null
+    );
   }, [enrichedTables, selectedTableId]);
 
   // 3. Quản lý giỏ chọn món tạm thời theo từng bàn
@@ -194,7 +424,9 @@ export function RomsProvider({ children }) {
     if (!dish.available) return;
     setDraftCartByTable((prev) => {
       const currentList = prev[tableId] || [];
-      const existingIndex = currentList.findIndex((item) => item.dishId === dish.id);
+      const existingIndex = currentList.findIndex(
+        (item) => item.dishId === dish.id
+      );
       if (existingIndex > -1) {
         const updated = [...currentList];
         updated[existingIndex] = {
@@ -260,385 +492,217 @@ export function RomsProvider({ children }) {
     }));
   }, []);
 
-  // 4. Gửi đơn xuống bếp (FR-K01: Tự động đưa vào hàng đợi FIFO "Vào trước - Làm trước")
+  // 4. Gửi đơn xuống bếp qua API POST /api/v1/orders hoặc POST /api/v1/orders/{id}/items
   const submitCartToKitchen = useCallback(
-    (tableId, guestCountInput) => {
+    async (tableId, guestCountInput) => {
       const cartItems = draftCartByTable[tableId] || [];
       if (cartItems.length === 0) {
-        showToast('Vui lòng chọn ít nhất 1 món trước khi gửi xuống bếp.', 'error');
+        showToast(
+          'Vui lòng chọn ít nhất 1 món trước khi gửi xuống bếp.',
+          'error'
+        );
         return null;
       }
 
-      const targetTable = tables.find((t) => t.id === tableId);
+      const targetTable = rawTables.find((t) => t.id === tableId);
       if (!targetTable) return null;
 
-      const nowStr = getCurrentTimeStr();
-      let resultOrder = null;
-      let isAddingToExisting = false;
-
-      if (targetTable.activeOrderId) {
-        isAddingToExisting = true;
-        const existingOrder = orders.find((o) => o.id === targetTable.activeOrderId);
-        const nextRound = (existingOrder?.roundCount || 1) + 1;
-        const roundFifo = Date.now();
-
-        const newOrderItems = cartItems.map((c, idx) => ({
-          id: `item-${Date.now()}-${idx}`,
-          dishId: c.dishId,
-          name: c.name,
-          price: c.price,
-          quantity: c.quantity,
-          note: (c.note || '').trim(),
-          status: DISH_STATUS.PENDING,
-          orderedAt: nowStr,
-          updatedAt: nowStr,
-          round: nextRound,
-          roundFifo,
-          image: c.image,
-        }));
-
-        setOrders((prev) =>
-          prev.map((order) => {
-            if (order.id !== targetTable.activeOrderId) return order;
-            const updatedOrder = {
-              ...order,
-              guests: guestCountInput || order.guests || 2,
-              roundCount: nextRound,
-              servedAt: null,
-              paymentRequested: false,
-              items: [...order.items, ...newOrderItems],
-            };
-            resultOrder = updatedOrder;
-            return updatedOrder;
-          })
-        );
-
-        if (guestCountInput) {
-          setTables((prev) =>
-            prev.map((t) => (t.id === tableId ? { ...t, guests: guestCountInput } : t))
-          );
-        }
-      } else {
-        const nextOrderNumber = 1046 + orders.length;
-        const newOrderId = `ORD-${nextOrderNumber}`;
-        const newOrderCode = `#${nextOrderNumber}`;
-        const guests = guestCountInput || 2;
-        const roundFifo = Date.now();
-
-        const newOrderItems = cartItems.map((c, idx) => ({
-          id: `item-${Date.now()}-${idx}`,
-          dishId: c.dishId,
-          name: c.name,
-          price: c.price,
-          quantity: c.quantity,
-          note: (c.note || '').trim(),
-          status: DISH_STATUS.PENDING,
-          orderedAt: nowStr,
-          updatedAt: nowStr,
-          round: 1,
-          roundFifo,
-          image: c.image,
-        }));
-
-        const newOrder = {
-          id: newOrderId,
-          code: newOrderCode,
-          tableId: targetTable.id,
-          tableName: targetTable.name,
-          priority: 'NORMAL',
-          fifoOrder: roundFifo,
-          guests,
-          createdAt: nowStr,
-          cookingStartedAt: null,
-          cookedAt: null,
-          servedAt: null,
-          paymentRequested: false,
-          paymentRequestedAt: null,
-          roundCount: 1,
-          items: newOrderItems,
-        };
-
-        resultOrder = newOrder;
-
-        setOrders((prev) => [...prev, newOrder]);
-        setTables((prev) =>
-          prev.map((t) =>
-            t.id === tableId
-              ? { ...t, activeOrderId: newOrderId, guests }
-              : t
-          )
-        );
-      }
-
-      setDraftCartByTable((prev) => ({
-        ...prev,
-        [tableId]: [],
+      const itemsPayload = cartItems.map((c) => ({
+        menuItemId: c.dishId,
+        quantity: c.quantity,
+        note: (c.note || '').trim() || null,
       }));
 
-      setSelectedTableId(tableId);
+      try {
+        const isAddingToExisting = Boolean(targetTable.activeOrderId);
+        let orderDto = null;
 
-      const totalNewQty = cartItems.reduce((sum, i) => sum + i.quantity, 0);
-      const actionMsg = isAddingToExisting
-        ? `Đã gửi thêm ${totalNewQty} món của ${targetTable.name} xuống bếp!`
-        : `Đã tạo đơn mới và gửi ${totalNewQty} món của ${targetTable.name} xuống bếp!`;
-
-      showToast(actionMsg, 'success');
-
-      setNotifications((prev) => [
-        {
-          id: `notif-${Date.now()}`,
-          title: isAddingToExisting
-            ? `Gọi thêm món - ${targetTable.name}`
-            : `Đơn hàng mới - ${targetTable.name}`,
-          message: `Đã chuyển ${totalNewQty} món xuống bếp lúc ${nowStr}.`,
-          time: nowStr,
-          tableId,
-          unread: true,
-        },
-        ...prev,
-      ]);
-
-      return {
-        ok: true,
-        isAddingToExisting,
-        order: resultOrder,
-        addedCount: totalNewQty,
-      };
-    },
-    [draftCartByTable, tables, orders, currentUser, showToast]
-  );
-
-  // 5. Thao tác trên màn hình Theo dõi món: Xác nhận đã phục vụ (DONE -> SERVED)
-  const markDishServed = useCallback(
-    (orderId, itemId) => {
-      const nowStr = getCurrentTimeStr();
-      let dishName = '';
-      let tableName = '';
-
-      setOrders((prev) =>
-        prev.map((order) => {
-          if (order.id !== orderId) return order;
-          tableName = order.tableName;
-          const updatedItems = order.items.map((item) => {
-            if (item.id !== itemId || item.status !== DISH_STATUS.DONE) return item;
-            dishName = item.name;
-            return {
-              ...item,
-              status: DISH_STATUS.SERVED,
-              updatedAt: nowStr,
-            };
-          });
-
-          const allDone =
-            updatedItems.length > 0 &&
-            updatedItems.every(
-              (i) =>
-                i.status === DISH_STATUS.SERVED ||
-                i.status === DISH_STATUS.CANCELLED
-            );
-
-          return {
-            ...order,
-            servedAt: allDone ? nowStr : order.servedAt,
-            items: updatedItems,
-          };
-        })
-      );
-
-      if (dishName) {
-        showToast(`Đã xác nhận phục vụ món "${dishName}" cho ${tableName}.`, 'success');
-      }
-    },
-    [showToast]
-  );
-
-  // 6. Thao tác hủy món đang chờ chế biến (PENDING -> CANCELLED)
-  const cancelDish = useCallback(
-    (orderId, itemId) => {
-      const nowStr = getCurrentTimeStr();
-      let dishName = '';
-      let tableName = '';
-
-      setOrders((prev) =>
-        prev.map((order) => {
-          if (order.id !== orderId) return order;
-          tableName = order.tableName;
-          const updatedItems = order.items.map((item) => {
-            if (item.id !== itemId || item.status !== DISH_STATUS.PENDING) return item;
-            dishName = item.name;
-            return {
-              ...item,
-              status: DISH_STATUS.CANCELLED,
-              updatedAt: nowStr,
-            };
-          });
-          return {
-            ...order,
-            items: updatedItems,
-          };
-        })
-      );
-
-      if (dishName) {
-        showToast(`Đã hủy món "${dishName}" (${tableName}).`, 'info');
-      }
-    },
-    [showToast]
-  );
-
-  // FR-K02: Nút bấm 1 chạm (1-touch) cho Nhà Bếp chuyển trạng thái món:
-  // PENDING (Chờ nấu) -> COOKING (Đang nấu) -> DONE (Đã xong)
-  const advanceDishKitchenStatus = useCallback(
-    (orderId, itemId) => {
-      const nowStr = getCurrentTimeStr();
-      let dishName = '';
-      let tableName = '';
-      let nextStatus = null;
-
-      setOrders((prev) =>
-        prev.map((order) => {
-          if (order.id !== orderId) return order;
-          tableName = order.tableName;
-          const updatedItems = order.items.map((item) => {
-            if (item.id !== itemId) return item;
-            if (item.status === DISH_STATUS.PENDING) {
-              nextStatus = DISH_STATUS.COOKING;
-            } else if (item.status === DISH_STATUS.COOKING) {
-              nextStatus = DISH_STATUS.DONE;
-            } else {
-              return item;
+        if (isAddingToExisting) {
+          orderDto = await apiFetch(
+            `/orders/${targetTable.activeOrderId}/items`,
+            {
+              method: 'POST',
+              body: JSON.stringify({ items: itemsPayload }),
             }
-            dishName = item.name;
-            return {
-              ...item,
-              status: nextStatus,
-              updatedAt: nowStr,
-            };
+          );
+        } else {
+          orderDto = await apiFetch('/orders', {
+            method: 'POST',
+            body: JSON.stringify({
+              tableId: targetTable.id,
+              items: itemsPayload,
+            }),
           });
+        }
 
-          if (!nextStatus) return order;
+        const mappedOrder = mapOrderFromApi(orderDto);
+        if (guestCountInput) {
+          mappedOrder.guests = guestCountInput;
+        }
 
-          return {
-            ...order,
-            cookingStartedAt:
-              nextStatus === DISH_STATUS.COOKING && !order.cookingStartedAt
-                ? nowStr
-                : order.cookingStartedAt,
-            cookedAt:
-              nextStatus === DISH_STATUS.DONE ? nowStr : order.cookedAt,
-            items: updatedItems,
-          };
-        })
-      );
+        setDraftCartByTable((prev) => ({
+          ...prev,
+          [tableId]: [],
+        }));
+        setSelectedTableId(tableId);
 
-      if (dishName && nextStatus) {
-        const statusText =
-          nextStatus === DISH_STATUS.COOKING ? 'Đang nấu' : 'Đã xong';
-        showToast(`${tableName}: "${dishName}" → ${statusText}`, 'success');
+        await refreshData();
+
+        const totalNewQty = cartItems.reduce((sum, i) => sum + i.quantity, 0);
+        const nowStr = getCurrentTimeStr();
+        const actionMsg = isAddingToExisting
+          ? `Đã gửi thêm ${totalNewQty} món của ${targetTable.name} xuống bếp!`
+          : `Đã tạo đơn mới và gửi ${totalNewQty} món của ${targetTable.name} xuống bếp!`;
+
+        showToast(actionMsg, 'success');
+
+        setNotifications((prev) => [
+          {
+            id: `notif-${Date.now()}`,
+            title: isAddingToExisting
+              ? `Gọi thêm món - ${targetTable.name}`
+              : `Đơn hàng mới - ${targetTable.name}`,
+            message: `Đã chuyển ${totalNewQty} món xuống bếp lúc ${nowStr}.`,
+            time: nowStr,
+            tableId,
+            unread: true,
+          },
+          ...prev,
+        ]);
+
+        return {
+          ok: true,
+          isAddingToExisting,
+          order: mappedOrder,
+          addedCount: totalNewQty,
+        };
+      } catch (err) {
+        showToast(err.message || 'Không thể gửi đơn xuống bếp.', 'error');
+        return null;
       }
     },
-    [showToast]
+    [draftCartByTable, rawTables, apiFetch, mapOrderFromApi, refreshData, showToast]
   );
 
-  const simulateKitchenStep = useCallback(
-    (orderId, itemId, targetStatus) => {
-      const nowStr = getCurrentTimeStr();
-      let dishName = '';
-      setOrders((prev) =>
-        prev.map((order) => {
-          if (order.id !== orderId) return order;
-          const updatedItems = order.items.map((item) => {
-            if (item.id !== itemId) return item;
-            dishName = item.name;
-            return {
-              ...item,
-              status: targetStatus,
-              updatedAt: nowStr,
-            };
+  // 5. Xác nhận đã phục vụ: POST /api/v1/order-items/{id}/serve
+  const markDishServed = useCallback(
+    async (orderId, itemId) => {
+      try {
+        await apiFetch(`/order-items/${itemId}/serve`, { method: 'POST' });
+        await refreshData();
+        showToast('Đã xác nhận phục vụ món lên bàn.', 'success');
+      } catch (err) {
+        showToast(err.message || 'Không thể xác nhận phục vụ món.', 'error');
+      }
+    },
+    [apiFetch, refreshData, showToast]
+  );
+
+  // 6. Hủy món đang chờ nấu: POST /api/v1/order-items/{id}/cancel
+  const cancelDish = useCallback(
+    async (orderId, itemId) => {
+      try {
+        await apiFetch(`/order-items/${itemId}/cancel`, { method: 'POST' });
+        await refreshData();
+        showToast('Đã hủy món thành công.', 'info');
+      } catch (err) {
+        showToast(err.message || 'Không thể hủy món.', 'error');
+      }
+    },
+    [apiFetch, refreshData, showToast]
+  );
+
+  // 7. FR-K02: Chuyển trạng thái món 1 chạm tại Nhà Bếp:
+  // PENDING -> POST /kitchen/order-items/{id}/start -> COOKING
+  // COOKING -> POST /kitchen/order-items/{id}/done  -> DONE
+  const advanceDishKitchenStatus = useCallback(
+    async (orderId, itemId) => {
+      const targetOrder = orders.find((o) => o.id === String(orderId));
+      const targetItem = targetOrder?.items?.find(
+        (i) => i.id === String(itemId)
+      );
+      if (!targetItem) return;
+
+      try {
+        if (targetItem.status === DISH_STATUS.PENDING) {
+          await apiFetch(`/kitchen/order-items/${itemId}/start`, {
+            method: 'POST',
           });
-          return {
-            ...order,
-            cookingStartedAt:
-              targetStatus === DISH_STATUS.COOKING && !order.cookingStartedAt
-                ? nowStr
-                : order.cookingStartedAt,
-            cookedAt:
-              targetStatus === DISH_STATUS.DONE ? nowStr : order.cookedAt,
-            items: updatedItems,
-          };
-        })
-      );
-
-      if (dishName) {
-        const statusText =
-          targetStatus === DISH_STATUS.COOKING ? 'Đang chế biến' : 'Đã nấu xong';
-        showToast(`"${dishName}" → ${statusText}`, 'info');
-      }
-    },
-    [showToast]
-  );
-
-  // 7. Gửi yêu cầu thanh toán cho thu ngân
-  const requestPayment = useCallback(
-    (orderId) => {
-      const nowStr = getCurrentTimeStr();
-      let targetTableName = '';
-
-      setOrders((prev) =>
-        prev.map((order) => {
-          if (order.id !== orderId) return order;
-          targetTableName = order.tableName;
-          return {
-            ...order,
-            paymentRequested: true,
-            paymentRequestedAt: nowStr,
-          };
-        })
-      );
-
-      if (targetTableName) {
-        showToast(`Đã gửi yêu cầu thanh toán của ${targetTableName} đến thu ngân!`, 'success');
-      }
-    },
-    [showToast]
-  );
-
-  // FR-K03: Khóa món (Out of stock) - Toggle công tắc Hết hàng / Đang bán đồng bộ tức thời sang Phục vụ
-  const toggleDishAvailability = useCallback(
-    (dishId) => {
-      let targetDishName = '';
-      let nextAvailable = true;
-
-      setMenuItems((prev) =>
-        prev.map((item) => {
-          if (item.id !== dishId) return item;
-          targetDishName = item.name;
-          nextAvailable = !item.available;
-          return { ...item, available: nextAvailable };
-        })
-      );
-
-      if (targetDishName) {
+          await refreshData();
+          showToast(
+            `${targetOrder.tableName}: "${targetItem.name}" → Đang nấu`,
+            'success'
+          );
+        } else if (targetItem.status === DISH_STATUS.COOKING) {
+          await apiFetch(`/kitchen/order-items/${itemId}/done`, {
+            method: 'POST',
+          });
+          await refreshData();
+          showToast(
+            `${targetOrder.tableName}: "${targetItem.name}" → Đã xong`,
+            'success'
+          );
+        }
+      } catch (err) {
         showToast(
-          nextAvailable
-            ? `Đã mở bán lại món "${targetDishName}".`
-            : `Đã báo hết hàng món "${targetDishName}" (đã đồng bộ sang Phục vụ).`,
-          nextAvailable ? 'success' : 'info'
+          err.message || 'Không thể cập nhật trạng thái món.',
+          'error'
         );
       }
     },
-    [showToast]
+    [orders, apiFetch, refreshData, showToast]
   );
 
-  // Khôi phục dữ liệu mẫu ban đầu
-  const resetDemoData = useCallback(() => {
-    setTables(INITIAL_TABLES);
-    setOrders(INITIAL_ORDERS);
-    setMenuItems(MENU_ITEMS);
-    setDraftCartByTable({});
-    setSelectedTableId('T4');
-    showToast('Đã khôi phục dữ liệu mẫu ban đầu.', 'info');
-  }, [showToast]);
+  // 8. Gửi yêu cầu thanh toán: POST /api/v1/orders/{id}/request-payment
+  const requestPayment = useCallback(
+    async (orderId) => {
+      try {
+        await apiFetch(`/orders/${orderId}/request-payment`, {
+          method: 'POST',
+        });
+        await refreshData();
+        showToast('Đã gửi yêu cầu thanh toán đến thu ngân!', 'success');
+        return { ok: true };
+      } catch (err) {
+        showToast(
+          err.message ||
+            'Chỉ đơn hàng đã phục vụ hết món mới có thể yêu cầu thanh toán.',
+          'error'
+        );
+        return { ok: false, error: err.message };
+      }
+    },
+    [apiFetch, refreshData, showToast]
+  );
+
+  // 9. FR-K03: Khóa món (Out of stock): PATCH /api/v1/menu-items/{id}/availability
+  const toggleDishAvailability = useCallback(
+    async (dishId) => {
+      const targetDish = menuItems.find((m) => m.id === String(dishId));
+      if (!targetDish) return;
+      const nextAvailable = !targetDish.available;
+
+      try {
+        await apiFetch(`/menu-items/${dishId}/availability`, {
+          method: 'PATCH',
+          body: JSON.stringify({ available: nextAvailable }),
+        });
+        await refreshData();
+        showToast(
+          nextAvailable
+            ? `Đã mở bán lại món "${targetDish.name}".`
+            : `Đã báo hết hàng món "${targetDish.name}".`,
+          nextAvailable ? 'success' : 'info'
+        );
+      } catch (err) {
+        showToast(
+          err.message || 'Không thể cập nhật trạng thái món ăn.',
+          'error'
+        );
+      }
+    },
+    [menuItems, apiFetch, refreshData, showToast]
+  );
 
   const markAllNotificationsRead = useCallback(() => {
     setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
@@ -651,6 +715,7 @@ export function RomsProvider({ children }) {
       logout,
       tables: enrichedTables,
       orders,
+      categories,
       menuItems,
       selectedTableId,
       setSelectedTableId,
@@ -665,10 +730,9 @@ export function RomsProvider({ children }) {
       markDishServed,
       cancelDish,
       advanceDishKitchenStatus,
-      simulateKitchenStep,
       requestPayment,
       toggleDishAvailability,
-      resetDemoData,
+      refreshData,
       toast,
       showToast,
       dismissToast,
@@ -682,6 +746,7 @@ export function RomsProvider({ children }) {
       logout,
       enrichedTables,
       orders,
+      categories,
       menuItems,
       selectedTableId,
       selectedTable,
@@ -695,10 +760,9 @@ export function RomsProvider({ children }) {
       markDishServed,
       cancelDish,
       advanceDishKitchenStatus,
-      simulateKitchenStep,
       requestPayment,
       toggleDishAvailability,
-      resetDemoData,
+      refreshData,
       toast,
       showToast,
       dismissToast,

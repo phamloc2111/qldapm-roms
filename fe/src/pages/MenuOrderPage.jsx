@@ -15,7 +15,6 @@ import {
   Home,
 } from 'lucide-react';
 import { useRoms } from '../context/RomsContext';
-import { CATEGORIES } from '../data/mockData';
 import { RestaurantTableSvg } from '../components/common/TableIcon';
 import { formatCurrency } from '../utils/formatters';
 
@@ -25,6 +24,7 @@ export default function MenuOrderPage() {
   const {
     tables,
     selectedTable,
+    categories,
     menuItems,
     getCartForTable,
     addToCart,
@@ -34,9 +34,9 @@ export default function MenuOrderPage() {
     submitCartToKitchen,
   } = useRoms();
 
-  const currentTableId = tableId || selectedTable?.id || 'T4';
+  const currentTableId = tableId || selectedTable?.id || '';
   const currentTable = useMemo(
-    () => tables.find((t) => t.id === currentTableId) || tables[0],
+    () => tables.find((t) => t.id === currentTableId) || tables[0] || null,
     [tables, currentTableId]
   );
 
@@ -47,7 +47,7 @@ export default function MenuOrderPage() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [submittedResult, setSubmittedResult] = useState(null);
 
-  const cartItems = getCartForTable(currentTable.id);
+  const cartItems = currentTable ? getCartForTable(currentTable.id) : [];
 
   const filteredMenu = useMemo(() => {
     return menuItems.filter((item) => {
@@ -63,13 +63,14 @@ export default function MenuOrderPage() {
   }, [menuItems, selectedCategory, searchQuery]);
 
   const groupedMenu = useMemo(() => {
-    return CATEGORIES.filter((cat) => cat.id !== 'ALL')
+    return categories
+      .filter((cat) => cat.id !== 'ALL')
       .map((cat) => ({
         ...cat,
         items: filteredMenu.filter((item) => item.categoryId === cat.id),
       }))
       .filter((group) => group.items.length > 0);
-  }, [filteredMenu]);
+  }, [categories, filteredMenu]);
 
   const cartSummary = useMemo(() => {
     const totalItemsCount = cartItems.reduce((sum, i) => sum + i.quantity, 0);
@@ -83,9 +84,10 @@ export default function MenuOrderPage() {
     };
   }, [cartItems, currentTable]);
 
-  const handleConfirmSendToKitchen = () => {
+  const handleConfirmSendToKitchen = async () => {
+    if (!currentTable) return;
     setShowConfirmModal(false);
-    const res = submitCartToKitchen(currentTable.id, guestCount);
+    const res = await submitCartToKitchen(currentTable.id, guestCount);
     if (res && res.ok) {
       setSubmittedResult(res);
     }
@@ -105,7 +107,7 @@ export default function MenuOrderPage() {
         <div className="p-4 bg-[#FFF8F1] text-left space-y-2 text-xs sm:text-sm">
           <div className="flex justify-between gap-2">
             <span className="text-slate-500">Bàn:</span>
-            <span className="font-bold text-slate-900">{currentTable.name}</span>
+            <span className="font-bold text-slate-900">{currentTable?.name || '—'}</span>
           </div>
           <div className="flex justify-between gap-2">
             <span className="text-slate-500">Đơn hàng:</span>
@@ -386,7 +388,7 @@ export default function MenuOrderPage() {
 
       {/* Bộ lọc danh mục */}
       <div className="flex flex-wrap items-center gap-2">
-        {CATEGORIES.map((cat) => {
+        {categories.map((cat) => {
           const active = selectedCategory === cat.id;
           return (
             <button
@@ -455,7 +457,7 @@ export default function MenuOrderPage() {
 
                     {/* Nút thêm món (+) hoặc bộ điều chỉnh số lượng (- 1 +) */}
                     <div className="shrink-0">
-                      {!dish.available ? null : quantity > 0 ? (
+                      {!dish.available || !currentTable ? null : quantity > 0 ? (
                         <div className="inline-flex items-center gap-2 bg-slate-100 rounded-full p-1">
                           <button
                             onClick={() => updateCartQuantity(currentTable.id, dish.id, -1)}

@@ -1,4 +1,4 @@
-import { DISH_STATUS, TABLE_STATUS } from '../data/mockData';
+import { DISH_STATUS, TABLE_STATUS } from './constants';
 
 export function formatCurrency(amount) {
   if (typeof amount !== 'number' || Number.isNaN(amount)) return '0đ';

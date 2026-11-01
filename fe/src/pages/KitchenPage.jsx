@@ -16,7 +16,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { useRoms } from '../context/RomsContext';
-import { DISH_STATUS, CATEGORIES } from '../data/mockData';
+import { DISH_STATUS } from '../utils/constants';
 
 function parseTimeToMinutes(timeStr) {
   if (!timeStr || typeof timeStr !== 'string') return 0;
@@ -39,9 +39,11 @@ export default function KitchenPage() {
   const {
     currentUser,
     orders,
+    categories,
     menuItems,
     advanceDishKitchenStatus,
     toggleDishAvailability,
+    refreshData,
     showToast,
     logout,
   } = useRoms();
@@ -192,13 +194,14 @@ export default function KitchenPage() {
       return matchCat && matchSearch;
     });
 
-    return CATEGORIES.filter((cat) => cat.id !== 'ALL')
+    return categories
+      .filter((cat) => cat.id !== 'ALL')
       .map((cat) => ({
         ...cat,
         items: filtered.filter((item) => item.categoryId === cat.id),
       }))
       .filter((group) => group.items.length > 0);
-  }, [menuItems, menuSelectedCategory, menuSearchQuery]);
+  }, [categories, menuItems, menuSelectedCategory, menuSearchQuery]);
 
   // Màu sắc header thẻ theo thứ tự ưu tiên FIFO giống thiết kế tham khảo (Đỏ -> Cam -> Xanh dương -> Xanh lá)
   const getTicketBannerStyle = (index) => {
@@ -237,9 +240,10 @@ export default function KitchenPage() {
     return `00:${String(displayMins).padStart(2, '0')}`;
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true);
     setCurrentTime(getCurrentTimeHHMM());
+    await refreshData();
     setTimeout(() => {
       setIsRefreshing(false);
       showToast('Đã đồng bộ dữ liệu Nhà Bếp mới nhất.', 'info');
@@ -622,7 +626,7 @@ export default function KitchenPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                {CATEGORIES.map((cat) => {
+                {categories.map((cat) => {
                   const active = menuSelectedCategory === cat.id;
                   return (
                     <button

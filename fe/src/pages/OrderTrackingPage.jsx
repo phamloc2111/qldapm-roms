@@ -9,7 +9,7 @@ import {
   PlusCircle,
 } from 'lucide-react';
 import { useRoms } from '../context/RomsContext';
-import { DISH_STATUS } from '../data/mockData';
+import { DISH_STATUS } from '../utils/constants';
 import { RestaurantTableSvg } from '../components/common/TableIcon';
 import DishStatusBadge from '../components/common/DishStatusBadge';
 import { getOrderSummary } from '../utils/formatters';

@@ -28,11 +28,10 @@ fe/src/
 ├── main.jsx                         # Điểm khởi chạy ứng dụng React
 ├── App.jsx                          # Cấu hình định tuyến (React Router) & bảo vệ route
 ├── index.css                        # Thiết lập style chủ đạo & font Be Vietnam Pro
-├── data/
-│   └── mockData.js                  # Dữ liệu giả lập (bàn, danh mục, thực đơn, đơn hàng, nhân viên)
 ├── context/
-│   └── RomsContext.jsx              # Quản lý trạng thái toàn cục (Auth, Bàn, Giỏ gọi món, Đơn hàng)
+│   └── RomsContext.jsx              # Quản lý trạng thái toàn cục & đồng bộ REST API (Auth, Bàn, Giỏ gọi món, Đơn hàng)
 ├── utils/
+│   ├── constants.js                 # Hằng số trạng thái món ăn (DISH_STATUS) & trạng thái bàn (TABLE_STATUS)
 │   └── formatters.js                # Hàm định dạng tiền tệ & tính toán quy tắc nghiệp vụ
 ├── components/
 │   ├── common/

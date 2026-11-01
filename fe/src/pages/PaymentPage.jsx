@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Send, Home, Check } from 'lucide-react';
 import { useRoms } from '../context/RomsContext';
-import { DISH_STATUS } from '../data/mockData';
+import { DISH_STATUS } from '../utils/constants';
 import { RestaurantTableSvg } from '../components/common/TableIcon';
 import DishStatusBadge from '../components/common/DishStatusBadge';
 import { formatCurrency, getOrderSummary } from '../utils/formatters';
@@ -26,11 +26,13 @@ export default function PaymentPage() {
     Boolean(activeOrder?.paymentRequested)
   );
 
-  const handleConfirmPayment = () => {
+  const handleConfirmPayment = async () => {
     if (!activeOrder) return;
     setShowConfirmModal(false);
-    requestPayment(activeOrder.id);
-    setIsSubmitted(true);
+    const res = await requestPayment(activeOrder.id);
+    if (res?.ok) {
+      setIsSubmitted(true);
+    }
   };
 
   if (!activeOrder) {

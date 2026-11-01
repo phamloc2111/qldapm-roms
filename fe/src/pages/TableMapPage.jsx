@@ -2,23 +2,25 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RotateCw, Utensils, CreditCard, X } from 'lucide-react';
 import { useRoms } from '../context/RomsContext';
-import { TABLE_STATUS } from '../data/mockData';
+import { TABLE_STATUS } from '../utils/constants';
 import { GridTableGlyph, RestaurantTableSvg } from '../components/common/TableIcon';
 import DishStatusBadge from '../components/common/DishStatusBadge';
 import { formatCurrency } from '../utils/formatters';
 
 export default function TableMapPage() {
-  const { tables, selectedTable, setSelectedTableId, showToast } = useRoms();
+  const { tables, selectedTable, setSelectedTableId, refreshData, showToast } =
+    useRoms();
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true);
+    await refreshData();
     setTimeout(() => {
       setIsRefreshing(false);
-    }, 350);
+    }, 300);
   };
 
   const handleSelectTable = (tableId) => {
