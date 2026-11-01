@@ -1,8 +1,5 @@
 import React from 'react';
 
-/**
- * Biểu tượng bàn nhà hàng đồng bộ theo ảnh thiết kế tham khảo
- */
 export function RestaurantTableSvg({ className = 'w-7 h-7', strokeWidth = 2 }) {
   return (
     <svg
@@ -11,7 +8,7 @@ export function RestaurantTableSvg({ className = 'w-7 h-7', strokeWidth = 2 }) {
       xmlns="http://www.w3.org/2000/svg"
       className={className}
     >
-      {/* Mặt bàn */}
+
       <path
         d="M5 12C5 10.8954 5.89543 10 7 10H25C26.1046 10 27 10.8954 27 12V14H5V12Z"
         stroke="currentColor"
@@ -19,14 +16,12 @@ export function RestaurantTableSvg({ className = 'w-7 h-7', strokeWidth = 2 }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      {/* Chân bàn ngoài */}
       <path
         d="M7 14V24M25 14V24"
         stroke="currentColor"
         strokeWidth={strokeWidth}
         strokeLinecap="round"
       />
-      {/* Hai ghế bên dưới mặt bàn */}
       <path
         d="M11 17V23M15 17V23M11 20H15"
         stroke="currentColor"
@@ -43,9 +38,6 @@ export function RestaurantTableSvg({ className = 'w-7 h-7', strokeWidth = 2 }) {
   );
 }
 
-/**
- * Biểu tượng ghế/bàn nhỏ trong ô lưới sơ đồ bàn (giống ảnh 1)
- */
 export function GridTableGlyph({ className = 'w-6 h-6' }) {
   return (
     <svg
@@ -71,9 +63,6 @@ export function GridTableGlyph({ className = 'w-6 h-6' }) {
   );
 }
 
-/**
- * Logo ROMS (Muỗng + Nĩa màu cam) giống hệt ảnh tham khảo
- */
 export function RomsLogo({ size = 'md', showText = true }) {
   const iconDimensions =
     size === 'lg' ? 'w-11 h-11' : size === 'sm' ? 'w-7 h-7' : 'w-9 h-9';

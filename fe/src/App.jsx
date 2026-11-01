@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { RomsProvider, useRoms } from './context/RomsContext';
 import AppLayout from './components/layout/AppLayout';
@@ -52,6 +52,10 @@ function RoleDefaultRedirect() {
 }
 
 export default function App() {
+  useEffect(() => {
+    document.title = 'ROMS';
+  }, []);
+
   return (
     <RomsProvider>
       <BrowserRouter>
