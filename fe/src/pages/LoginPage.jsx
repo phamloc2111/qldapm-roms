@@ -24,6 +24,8 @@ export default function LoginPage() {
 
     if (result.user?.role === 'KITCHEN') {
       navigate('/kitchen', { replace: true });
+    } else if (result.user?.role === 'CASHIER') {
+      navigate('/cashier', { replace: true });
     } else {
       navigate('/tables', { replace: true });
     }
@@ -137,6 +139,48 @@ export default function LoginPage() {
               <LogIn className="w-5 h-5" />
               <span>Đăng nhập</span>
             </button>
+          </div>
+
+          {/* Nút chọn nhanh tài khoản thử nghiệm theo vai trò */}
+          <div className="pt-3 border-t border-orange-400/40 text-center space-y-2">
+            <span className="text-[11px] font-bold text-orange-100 uppercase tracking-wider block">
+              Đăng nhập nhanh theo phân hệ
+            </span>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setUsername('waiter01');
+                  setPassword('password123456');
+                  setErrorMessage('');
+                }}
+                className="py-1.5 px-2 rounded-xl bg-orange-600/60 hover:bg-orange-600 text-white text-xs font-bold border border-orange-400/50 transition-colors cursor-pointer"
+              >
+                Phục vụ
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setUsername('kitchen01');
+                  setPassword('password123456');
+                  setErrorMessage('');
+                }}
+                className="py-1.5 px-2 rounded-xl bg-orange-600/60 hover:bg-orange-600 text-white text-xs font-bold border border-orange-400/50 transition-colors cursor-pointer"
+              >
+                Nhà bếp
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setUsername('cashier01');
+                  setPassword('password123456');
+                  setErrorMessage('');
+                }}
+                className="py-1.5 px-2 rounded-xl bg-white text-orange-600 text-xs font-black shadow-xs hover:bg-orange-50 transition-colors cursor-pointer"
+              >
+                Thu ngân
+              </button>
+            </div>
           </div>
         </form>
       </div>

@@ -95,6 +95,7 @@ Truy cập ứng dụng tại: **`http://localhost:5173`**
 | :--- | :--- | :--- | :--- | :--- |
 | **Phục vụ** (`WAITER`) | `waiter01` | `password123456` | `/tables` (Sơ đồ bàn) | Xem trạng thái bàn, tạo đơn / gọi thêm món, theo dõi tiến độ món ăn, gửi yêu cầu thanh toán |
 | **Nhà bếp** (`KITCHEN`) | `kitchen01` | `password123456` | `/kitchen` (Màn hình bếp) | Xem hàng đợi món theo thứ tự FIFO, chuyển trạng thái chế biến (*Chờ nấu ➔ Đang nấu ➔ Đã xong*), báo hết hàng / mở bán món |
+| **Thu ngân** (`CASHIER`) | `cashier01` *(hoặc `cashier`)* | `password123456` | `/cashier` (Giao diện Thu Ngân) | 4 Tab: **Thanh toán POS**, **Quản lý Thực đơn**, **Quản lý Sơ đồ bàn**, **Báo cáo Doanh thu** & In hóa đơn |
 
 
 ---
@@ -145,5 +146,6 @@ fe/src/
     ├── OrderTrackingPage.jsx        # Theo dõi món theo bàn (xác nhận phục vụ / hủy món đang chờ)
     ├── PaymentPage.jsx              # Tóm tắt hóa đơn & gửi yêu cầu thanh toán sang thu ngân
     ├── KitchenPage.jsx              # Màn hình Nhà bếp KDS (hàng đợi FIFO, đổi trạng thái món, báo hết món)
+    ├── CashierPage.jsx              # Màn hình Thu Ngân POS (4 tab: Thanh toán, Thực đơn, Sơ đồ bàn, Báo cáo)
     └── ProfilePage.jsx              # Thông tin tài khoản nhân viên & Đăng xuất
 ```

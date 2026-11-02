@@ -339,6 +339,28 @@ export function RomsProvider({ children }) {
         };
       }
 
+      // Hỗ trợ đăng nhập Thu Ngân (CASHIER) ở giai đoạn phát triển Frontend độc lập không cần backend
+      if (
+        trimmedUsername === 'cashier' ||
+        trimmedUsername === 'cashier01' ||
+        trimmedUsername === 'thungan'
+      ) {
+        const mockCashier = {
+          id: 'mock-cashier-id',
+          username: trimmedUsername,
+          role: 'CASHIER',
+          roleDisplay: 'Thu ngân',
+          avatarInitial: 'T',
+          active: true,
+        };
+        sessionStorage.setItem(SESSION_TOKEN_KEY, 'mock-cashier-token');
+        sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(mockCashier));
+        setAccessToken('mock-cashier-token');
+        setCurrentUser(mockCashier);
+        showToast('Đăng nhập thành công với vai trò Thu Ngân!');
+        return { ok: true, user: mockCashier };
+      }
+
       try {
         const tokenRes = await apiFetch(
           '/auth/login',
@@ -739,6 +761,7 @@ export function RomsProvider({ children }) {
       notifications,
       markAllNotificationsRead,
       lastSyncTime,
+      apiFetch,
     }),
     [
       currentUser,
@@ -769,6 +792,7 @@ export function RomsProvider({ children }) {
       notifications,
       markAllNotificationsRead,
       lastSyncTime,
+      apiFetch,
     ]
   );
 

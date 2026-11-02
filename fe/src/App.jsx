@@ -10,6 +10,7 @@ import OrderTrackingPage from './pages/OrderTrackingPage';
 import PaymentPage from './pages/PaymentPage';
 import ProfilePage from './pages/ProfilePage';
 import KitchenPage from './pages/KitchenPage';
+import CashierPage from './pages/CashierPage';
 
 function RoleProtectedRoute({ allowedRole, children }) {
   const { currentUser } = useRoms();
@@ -17,12 +18,13 @@ function RoleProtectedRoute({ allowedRole, children }) {
     return <Navigate to="/login" replace />;
   }
   if (allowedRole && currentUser.role !== allowedRole) {
-    return (
-      <Navigate
-        to={currentUser.role === 'KITCHEN' ? '/kitchen' : '/tables'}
-        replace
-      />
-    );
+    if (currentUser.role === 'KITCHEN') {
+      return <Navigate to="/kitchen" replace />;
+    }
+    if (currentUser.role === 'CASHIER') {
+      return <Navigate to="/cashier" replace />;
+    }
+    return <Navigate to="/tables" replace />;
   }
   return children;
 }
@@ -32,6 +34,9 @@ function PublicLoginRoute({ children }) {
   if (currentUser) {
     if (currentUser.role === 'KITCHEN') {
       return <Navigate to="/kitchen" replace />;
+    }
+    if (currentUser.role === 'CASHIER') {
+      return <Navigate to="/cashier" replace />;
     }
     return <Navigate to="/tables" replace />;
   }
@@ -43,12 +48,13 @@ function RoleDefaultRedirect() {
   if (!currentUser) {
     return <Navigate to="/login" replace />;
   }
-  return (
-    <Navigate
-      to={currentUser.role === 'KITCHEN' ? '/kitchen' : '/tables'}
-      replace
-    />
-  );
+  if (currentUser.role === 'KITCHEN') {
+    return <Navigate to="/kitchen" replace />;
+  }
+  if (currentUser.role === 'CASHIER') {
+    return <Navigate to="/cashier" replace />;
+  }
+  return <Navigate to="/tables" replace />;
 }
 
 export default function App() {
@@ -75,6 +81,16 @@ export default function App() {
               <RoleProtectedRoute allowedRole="KITCHEN">
                 <ToastBanner />
                 <KitchenPage />
+              </RoleProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/cashier"
+            element={
+              <RoleProtectedRoute allowedRole="CASHIER">
+                <ToastBanner />
+                <CashierPage />
               </RoleProtectedRoute>
             }
           />
