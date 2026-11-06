@@ -3022,11 +3022,9 @@ export default function CashierPage() {
                   </div>
                   <div>
                     <h2 className="text-lg lg:text-xl font-extrabold text-slate-900">
-                      Báo cáo Doanh thu & Tổng hợp cuối ngày
+                      Báo cáo Doanh thu
                     </h2>
-                    <p className="text-xs text-slate-400">
-                      Dữ liệu báo cáo ngày: <span className="font-bold text-orange-600">{reportDate}</span>
-                    </p>
+
                   </div>
                 </div>
 
@@ -3076,9 +3074,7 @@ export default function CashierPage() {
                     <h3 className="text-2xl font-black text-slate-900 mt-0.5">
                       {revenueReport.totalOrdersCompleted} đơn
                     </h3>
-                    <span className="text-[11px] font-semibold text-slate-500 mt-0.5">
-                      Đã thanh toán thành công
-                    </span>
+
                   </div>
                 </div>
 
@@ -3114,15 +3110,9 @@ export default function CashierPage() {
                       <h3 className="font-extrabold text-base text-slate-900">
                         Top 10 Món bán chạy nhất trong ngày
                       </h3>
-                      <p className="text-xs text-slate-400">
-                        Sắp xếp theo số lượng bán và doanh thu thu về
-                      </p>
+
                     </div>
                   </div>
-
-                  <span className="text-xs font-bold px-2.5 py-1 rounded-md bg-orange-50 text-orange-600 border border-orange-200/70">
-                    Giới hạn 10 món
-                  </span>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -3264,7 +3254,7 @@ export default function CashierPage() {
           <div className="bg-white rounded-lg p-6 w-full max-w-sm shadow-2xl border border-slate-100 space-y-4">
             <div className="text-center pb-3 border-b border-dashed border-slate-200">
               <span className="px-2.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-black uppercase tracking-wider mb-1 inline-block">
-                Phiếu tạm tính (Chưa thanh toán)
+                Phiếu tạm tính
               </span>
               <h3 className="font-black text-lg text-slate-900 tracking-tight">
                 NHÀ HÀNG ROMS
