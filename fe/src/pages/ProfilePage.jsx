@@ -55,7 +55,17 @@ export default function ProfilePage() {
             <span>Vai trò</span>
           </div>
           <span className="text-sm font-bold text-slate-900">
-            {user.roleDisplay}
+            {user.roleDisplay} ({user.role || 'CASHIER'})
+          </span>
+        </div>
+
+        <div className="py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 text-slate-600 text-sm font-medium">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span>Trạng thái tài khoản</span>
+          </div>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+            {user.active !== false ? 'Đang hoạt động' : 'Vô hiệu hóa'}
           </span>
         </div>
       </div>
