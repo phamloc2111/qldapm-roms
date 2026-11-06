@@ -12,16 +12,17 @@ import ProfilePage from './pages/ProfilePage';
 import KitchenPage from './pages/KitchenPage';
 import CashierPage from './pages/CashierPage';
 
-function RoleProtectedRoute({ allowedRole, children }) {
+function RoleProtectedRoute({ allowedRole, allowedRoles, children }) {
   const { currentUser } = useRoms();
   if (!currentUser) {
     return <Navigate to="/login" replace />;
   }
-  if (allowedRole && currentUser.role !== allowedRole) {
+  const roles = allowedRoles || (allowedRole ? [allowedRole] : []);
+  if (roles.length > 0 && !roles.includes(currentUser.role)) {
     if (currentUser.role === 'KITCHEN') {
       return <Navigate to="/kitchen" replace />;
     }
-    if (currentUser.role === 'CASHIER') {
+    if (currentUser.role === 'CASHIER' || currentUser.role === 'ADMIN') {
       return <Navigate to="/cashier" replace />;
     }
     return <Navigate to="/tables" replace />;
@@ -35,7 +36,7 @@ function PublicLoginRoute({ children }) {
     if (currentUser.role === 'KITCHEN') {
       return <Navigate to="/kitchen" replace />;
     }
-    if (currentUser.role === 'CASHIER') {
+    if (currentUser.role === 'CASHIER' || currentUser.role === 'ADMIN') {
       return <Navigate to="/cashier" replace />;
     }
     return <Navigate to="/tables" replace />;
@@ -51,7 +52,7 @@ function RoleDefaultRedirect() {
   if (currentUser.role === 'KITCHEN') {
     return <Navigate to="/kitchen" replace />;
   }
-  if (currentUser.role === 'CASHIER') {
+  if (currentUser.role === 'CASHIER' || currentUser.role === 'ADMIN') {
     return <Navigate to="/cashier" replace />;
   }
   return <Navigate to="/tables" replace />;
@@ -88,7 +89,7 @@ export default function App() {
           <Route
             path="/cashier"
             element={
-              <RoleProtectedRoute allowedRole="CASHIER">
+              <RoleProtectedRoute allowedRoles={['CASHIER', 'ADMIN']}>
                 <ToastBanner />
                 <CashierPage />
               </RoleProtectedRoute>

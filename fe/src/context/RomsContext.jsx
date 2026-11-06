@@ -245,8 +245,8 @@ export function RomsProvider({ children }) {
         mappedMenu.forEach((m) => localMenuMap.set(String(m.id), m));
         menuMapRef.current = localMenuMap;
 
-        // 2. Nếu là WAITER hoặc ADMIN: Lấy danh sách bàn & danh sách đơn đang hoạt động
-        if (user.role === 'WAITER' || user.role === 'ADMIN') {
+        // 2. Nếu là WAITER, CASHIER hoặc ADMIN: Lấy danh sách bàn & danh sách đơn đang hoạt động
+        if (user.role === 'WAITER' || user.role === 'CASHIER' || user.role === 'ADMIN') {
           const [tablesDto, activeOrdersDto] = await Promise.all([
             apiFetch('/tables', { method: 'GET' }, token),
             apiFetch('/orders/active', { method: 'GET' }, token),
@@ -337,28 +337,6 @@ export function RomsProvider({ children }) {
           ok: false,
           error: 'Vui lòng nhập mật khẩu.',
         };
-      }
-
-      // Hỗ trợ đăng nhập Thu Ngân (CASHIER) ở giai đoạn phát triển Frontend độc lập không cần backend
-      if (
-        trimmedUsername === 'cashier' ||
-        trimmedUsername === 'cashier01' ||
-        trimmedUsername === 'thungan'
-      ) {
-        const mockCashier = {
-          id: 'mock-cashier-id',
-          username: trimmedUsername,
-          role: 'CASHIER',
-          roleDisplay: 'Thu ngân',
-          avatarInitial: 'T',
-          active: true,
-        };
-        sessionStorage.setItem(SESSION_TOKEN_KEY, 'mock-cashier-token');
-        sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(mockCashier));
-        setAccessToken('mock-cashier-token');
-        setCurrentUser(mockCashier);
-        showToast('Đăng nhập thành công với vai trò Thu Ngân!');
-        return { ok: true, user: mockCashier };
       }
 
       try {
