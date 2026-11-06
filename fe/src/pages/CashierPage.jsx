@@ -29,9 +29,17 @@ import {
   TrendingUp,
   Percent,
   Calendar,
+  ClipboardList,
+  BellRing,
+  Minus,
+  Send,
+  Ban,
+  MessageSquare,
+  ShoppingBag,
 } from 'lucide-react';
 import { useRoms } from '../context/RomsContext';
 import { formatCurrency } from '../utils/formatters';
+import { GridTableGlyph } from '../components/common/TableIcon';
 
 const DEFAULT_DISH_IMAGE =
   'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=80';
@@ -125,6 +133,17 @@ export default function CashierPage() {
     };
   }, [profileData, currentUser]);
 
+  // Phân quyền màn hình:
+  // - CASHIER: Chỉ sử dụng tab Thanh toán ('checkout') và Hồ sơ ('profile')
+  // - ADMIN: Có đầy đủ các tab quản trị + Thanh toán + Gọi món ('order') + Theo dõi món ('tracking')
+  const isAdmin = profileUser.role === 'ADMIN';
+
+  useEffect(() => {
+    if (!isAdmin && activeTab !== 'checkout' && activeTab !== 'profile') {
+      setActiveTab('checkout');
+    }
+  }, [isAdmin, activeTab]);
+
   // ==========================================================================
   // TAB 1: TIẾP NHẬN THANH TOÁN & TÍNH TIỀN (R-C01, FR-C02)
   // ==========================================================================
@@ -201,6 +220,16 @@ export default function CashierPage() {
 
   // Settings Modal
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // ==========================================================================
+  // TAB DÀNH CHO ADMIN: GỌI MÓN ('order') & THEO DÕI MÓN ('tracking') (PHỤC VỤ)
+  // ==========================================================================
+  const [orderTableStatusFilter, setOrderTableStatusFilter] = useState('ALL'); // 'ALL' | 'AVAILABLE' | 'OCCUPIED' | 'READY_TO_SERVE'
+  const [orderSelectedCategory, setOrderSelectedCategory] = useState('Tất cả');
+  const [orderSearchQuery, setOrderSearchQuery] = useState('');
+  const [orderCartByTable, setOrderCartByTable] = useState({});
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [trackingStatusFilter, setTrackingStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'COOKING' | 'DONE' | 'SERVED'
 
   // ==========================================================================
   // ĐỒNG HỒ THỜI GIAN THỰC
@@ -425,10 +454,12 @@ export default function CashierPage() {
     [apiFetch, reportDate]
   );
 
-  // Tải báo cáo doanh thu khi khởi chạy và khi mở tab Báo cáo
+  // Tải báo cáo doanh thu khi khởi chạy và khi mở tab Báo cáo (chỉ dành cho ADMIN)
   useEffect(() => {
-    handleFetchReportByDate(reportDate);
-  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (isAdmin) {
+      handleFetchReportByDate(reportDate);
+    }
+  }, [activeTab, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ==========================================================================
   // TÍNH TOÁN HÓA ĐƠN VÀ SỐ LƯỢNG MÓN ĐÃ PHỤC VỤ (R-C01 & FR-C02)
@@ -1043,6 +1074,194 @@ export default function CashierPage() {
     }
   };
 
+  // ==========================================================================
+  // HÀM XỬ LÝ GỌI MÓN & THEO DÕI MÓN DÀNH CHO ADMIN (CHỨC NĂNG PHỤC VỤ)
+  // ==========================================================================
+  const filteredOrderMenuItems = useMemo(() => {
+    return menuItems.filter((item) => {
+      const matchCat =
+        orderSelectedCategory === 'Tất cả' ||
+        item.categoryName === orderSelectedCategory ||
+        item.categoryId === orderSelectedCategory;
+      const matchSearch = item.name
+        .toLowerCase()
+        .includes(orderSearchQuery.trim().toLowerCase());
+      return matchCat && matchSearch;
+    });
+  }, [menuItems, orderSelectedCategory, orderSearchQuery]);
+
+  const currentTableCart = useMemo(() => {
+    if (!selectedTable?.id) return [];
+    return orderCartByTable[selectedTable.id] || [];
+  }, [orderCartByTable, selectedTable]);
+
+  const currentCartTotalVnd = useMemo(() => {
+    return currentTableCart.reduce((acc, it) => acc + it.priceVnd * it.quantity, 0);
+  }, [currentTableCart]);
+
+  const handleAddDishToOrderCart = (dish) => {
+    if (!selectedTable?.id) {
+      showToast('Vui lòng chọn một bàn trước khi gọi món.', 'error');
+      return;
+    }
+    if (dish.available === false) {
+      showToast(`Món "${dish.name}" hiện đang tạm hết hàng.`, 'error');
+      return;
+    }
+    if (selectedTable.status === 'PAYMENT_REQUESTED') {
+      showToast('Bàn này đang chờ thanh toán, vui lòng hoàn tất thanh toán trước.', 'error');
+      return;
+    }
+    const tId = selectedTable.id;
+    setOrderCartByTable((prev) => {
+      const existingList = prev[tId] || [];
+      const idx = existingList.findIndex((i) => i.menuItemId === dish.id);
+      if (idx >= 0) {
+        const updated = [...existingList];
+        updated[idx] = { ...updated[idx], quantity: updated[idx].quantity + 1 };
+        return { ...prev, [tId]: updated };
+      }
+      return {
+        ...prev,
+        [tId]: [
+          ...existingList,
+          {
+            menuItemId: dish.id,
+            name: dish.name,
+            priceVnd: dish.priceVnd,
+            imageUrl: dish.imageUrl || DEFAULT_DISH_IMAGE,
+            quantity: 1,
+            note: '',
+          },
+        ],
+      };
+    });
+  };
+
+  const handleUpdateCartItemQty = (menuItemId, delta) => {
+    if (!selectedTable?.id) return;
+    const tId = selectedTable.id;
+    setOrderCartByTable((prev) => {
+      const existingList = prev[tId] || [];
+      const updated = existingList
+        .map((it) =>
+          it.menuItemId === menuItemId ? { ...it, quantity: it.quantity + delta } : it
+        )
+        .filter((it) => it.quantity > 0);
+      return { ...prev, [tId]: updated };
+    });
+  };
+
+  const handleUpdateCartItemNote = (menuItemId, note) => {
+    if (!selectedTable?.id) return;
+    const tId = selectedTable.id;
+    setOrderCartByTable((prev) => {
+      const existingList = prev[tId] || [];
+      const updated = existingList.map((it) =>
+        it.menuItemId === menuItemId ? { ...it, note } : it
+      );
+      return { ...prev, [tId]: updated };
+    });
+  };
+
+  const handleRemoveCartItem = (menuItemId) => {
+    if (!selectedTable?.id) return;
+    const tId = selectedTable.id;
+    setOrderCartByTable((prev) => ({
+      ...prev,
+      [tId]: (prev[tId] || []).filter((it) => it.menuItemId !== menuItemId),
+    }));
+  };
+
+  // Gửi đơn gọi món xuống bếp (POST /api/v1/orders hoặc POST /api/v1/orders/{id}/items)
+  const handleSubmitOrderToKitchen = async () => {
+    if (!selectedTable?.id || currentTableCart.length === 0 || isSubmittingOrder) return;
+    setIsSubmittingOrder(true);
+    try {
+      const payloadItems = currentTableCart.map((it) => ({
+        menuItemId: it.menuItemId,
+        quantity: it.quantity,
+        note: it.note?.trim() || null,
+      }));
+
+      const activeOrderId = selectedTable.order?.id;
+      if (
+        activeOrderId &&
+        selectedTable.order.status !== 'PAID' &&
+        selectedTable.order.status !== 'CLOSED'
+      ) {
+        await apiFetch(`/orders/${activeOrderId}/items`, {
+          method: 'POST',
+          body: JSON.stringify({ items: payloadItems }),
+        });
+      } else {
+        await apiFetch('/orders', {
+          method: 'POST',
+          body: JSON.stringify({
+            tableId: selectedTable.id,
+            items: payloadItems,
+          }),
+        });
+      }
+
+      setOrderCartByTable((prev) => ({ ...prev, [selectedTable.id]: [] }));
+      await fetchBackendData();
+      await handleSelectTable(selectedTable);
+      showToast(`Đã gửi đơn gọi món của bàn ${selectedTable.name} xuống bếp!`, 'success');
+    } catch (err) {
+      showToast(err.message || 'Không thể gửi đơn gọi món xuống bếp.', 'error');
+    } finally {
+      setIsSubmittingOrder(false);
+    }
+  };
+
+  // Xác nhận đã phục vụ món (POST /api/v1/order-items/{id}/serve)
+  const handleServeOrderItem = async (orderItemId, itemName) => {
+    try {
+      await apiFetch(`/order-items/${orderItemId}/serve`, { method: 'POST' });
+      await fetchBackendData();
+      if (selectedTable) await handleSelectTable(selectedTable);
+      showToast(`Đã xác nhận phục vụ món "${itemName}"!`, 'success');
+    } catch (err) {
+      showToast(err.message || 'Không thể xác nhận phục vụ món ăn.', 'error');
+    }
+  };
+
+  // Hủy món đang chờ chế biến (POST /api/v1/order-items/{id}/cancel)
+  const handleCancelOrderItem = async (orderItemId, itemName) => {
+    try {
+      await apiFetch(`/order-items/${orderItemId}/cancel`, { method: 'POST' });
+      await fetchBackendData();
+      if (selectedTable) await handleSelectTable(selectedTable);
+      showToast(`Đã hủy món "${itemName}" khỏi đơn hàng.`, 'info');
+    } catch (err) {
+      showToast(err.message || 'Chỉ có thể hủy món khi bếp chưa bắt đầu chế biến.', 'error');
+    }
+  };
+
+  // Gửi yêu cầu thanh toán (POST /api/v1/orders/{id}/request-payment)
+  const handleRequestPaymentForTable = async () => {
+    if (!selectedTable?.order?.id) return;
+    try {
+      await apiFetch(`/orders/${selectedTable.order.id}/request-payment`, {
+        method: 'POST',
+      });
+      await fetchBackendData();
+      await handleSelectTable(selectedTable);
+      showToast(`Đã chuyển bàn ${selectedTable.name} sang trạng thái Chờ thanh toán!`, 'success');
+    } catch (err) {
+      showToast(err.message || 'Tất cả món trong đơn phải được phục vụ trước khi yêu cầu thanh toán.', 'error');
+    }
+  };
+
+  // Tổng số món đang chờ phục vụ (DONE) trên toàn nhà hàng để gắn badge trên tab Theo dõi món
+  const totalReadyToServeCount = useMemo(() => {
+    return tables.reduce((sum, tbl) => {
+      const items = tbl.order?.items || [];
+      return sum + items.filter((it) => it.status === 'DONE').length;
+    }, 0);
+  }, [tables]);
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#FAF7F2] text-slate-800 font-sans select-none">
       {/* ========================================================= */}
@@ -1065,14 +1284,17 @@ export default function CashierPage() {
             <h1 className="text-xl font-extrabold text-orange-600 tracking-tight flex items-center gap-1">
               ROMS
             </h1>
-
+            <span className="mt-1 px-2.5 py-0.5 rounded-full bg-orange-50 border border-orange-200/70 text-[10px] font-extrabold text-orange-700 uppercase tracking-wider">
+              {isAdmin ? 'Quản trị viên' : 'Thu ngân'}
+            </span>
           </div>
 
-          {/* Danh sách 4 Tab chức năng */}
-          <nav className="p-3 space-y-1.5 mt-2">
+          {/* Danh sách Tab chức năng phân quyền theo Role */}
+          <nav className="p-3 space-y-1.5 mt-1">
+            {/* Tab Thanh toán: Dành cho cả CASHIER và ADMIN */}
             <button
               onClick={() => setActiveTab('checkout')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${activeTab === 'checkout'
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${activeTab === 'checkout'
                 ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25'
                 : 'text-slate-600 hover:text-orange-600 hover:bg-orange-50/70'
                 }`}
@@ -1081,38 +1303,77 @@ export default function CashierPage() {
               <span>Thanh toán</span>
             </button>
 
-            <button
-              onClick={() => setActiveTab('menu')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${activeTab === 'menu'
-                ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25'
-                : 'text-slate-600 hover:text-orange-600 hover:bg-orange-50/70'
-                }`}
-            >
-              <Utensils className="w-5 h-5 shrink-0" />
-              <span>Quản lý Thực đơn</span>
-            </button>
+            {/* Các Tab chức năng Phục vụ & Quản trị: Chỉ hiển thị cho ADMIN */}
+            {isAdmin && (
+              <>
+                <button
+                  onClick={() => setActiveTab('order')}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${activeTab === 'order'
+                    ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25'
+                    : 'text-slate-600 hover:text-orange-600 hover:bg-orange-50/70'
+                    }`}
+                >
+                  <ClipboardList className="w-5 h-5 shrink-0" />
+                  <span>Gọi món</span>
+                </button>
 
-            <button
-              onClick={() => setActiveTab('tables')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${activeTab === 'tables'
-                ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25'
-                : 'text-slate-600 hover:text-orange-600 hover:bg-orange-50/70'
-                }`}
-            >
-              <LayoutGrid className="w-5 h-5 shrink-0" />
-              <span>Quản lý Sơ đồ bàn</span>
-            </button>
+                <button
+                  onClick={() => setActiveTab('tracking')}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${activeTab === 'tracking'
+                    ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25'
+                    : 'text-slate-600 hover:text-orange-600 hover:bg-orange-50/70'
+                    }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <BellRing className="w-5 h-5 shrink-0" />
+                    <span>Theo dõi món</span>
+                  </div>
+                  {totalReadyToServeCount > 0 && (
+                    <span
+                      className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${activeTab === 'tracking'
+                        ? 'bg-white text-orange-600'
+                        : 'bg-emerald-500 text-white'
+                        }`}
+                    >
+                      {totalReadyToServeCount}
+                    </span>
+                  )}
+                </button>
 
-            <button
-              onClick={() => setActiveTab('reports')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${activeTab === 'reports'
-                ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25'
-                : 'text-slate-600 hover:text-orange-600 hover:bg-orange-50/70'
-                }`}
-            >
-              <BarChart3 className="w-5 h-5 shrink-0" />
-              <span>Báo cáo Doanh thu</span>
-            </button>
+                <button
+                  onClick={() => setActiveTab('menu')}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${activeTab === 'menu'
+                    ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25'
+                    : 'text-slate-600 hover:text-orange-600 hover:bg-orange-50/70'
+                    }`}
+                >
+                  <Utensils className="w-5 h-5 shrink-0" />
+                  <span>Quản lý Thực đơn</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('tables')}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${activeTab === 'tables'
+                    ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25'
+                    : 'text-slate-600 hover:text-orange-600 hover:bg-orange-50/70'
+                    }`}
+                >
+                  <LayoutGrid className="w-5 h-5 shrink-0" />
+                  <span>Quản lý Sơ đồ bàn</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('reports')}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${activeTab === 'reports'
+                    ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25'
+                    : 'text-slate-600 hover:text-orange-600 hover:bg-orange-50/70'
+                    }`}
+                >
+                  <BarChart3 className="w-5 h-5 shrink-0" />
+                  <span>Báo cáo Doanh thu</span>
+                </button>
+              </>
+            )}
           </nav>
         </div>
 
@@ -1477,9 +1738,754 @@ export default function CashierPage() {
           )}
 
           {/* ===================================================== */}
-          {/* TAB 2: QUẢN LÝ THỰC ĐƠN (FR-C03)                      */}
+          {/* TAB DÀNH CHO ADMIN: GỌI MÓN (CHỨC NĂNG PHỤC VỤ)        */}
           {/* ===================================================== */}
-          {activeTab === 'menu' && (
+          {isAdmin && activeTab === 'order' && (
+            <div className="space-y-4">
+              {/* Sơ đồ bàn chuẩn giao diện Phục vụ */}
+              <div className="bg-white rounded-lg p-4 sm:p-5 shadow-xs border border-orange-100/80 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-md bg-orange-100 text-orange-600 flex items-center justify-center">
+                      <LayoutGrid className="w-4 h-4" />
+                    </div>
+                    <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
+                      Sơ đồ bàn
+                    </h2>
+                  </div>
+
+                  {/* Bộ lọc trạng thái bàn giống bên Phục vụ */}
+                  <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm font-medium text-slate-600">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOrderTableStatusFilter(
+                          orderTableStatusFilter === 'AVAILABLE' ? 'ALL' : 'AVAILABLE'
+                        )
+                      }
+                      className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${orderTableStatusFilter !== 'ALL' && orderTableStatusFilter !== 'AVAILABLE'
+                        ? 'opacity-40'
+                        : ''
+                        }`}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                      <span>Bàn trống</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOrderTableStatusFilter(
+                          orderTableStatusFilter === 'OCCUPIED' ? 'ALL' : 'OCCUPIED'
+                        )
+                      }
+                      className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${orderTableStatusFilter !== 'ALL' && orderTableStatusFilter !== 'OCCUPIED'
+                        ? 'opacity-40'
+                        : ''
+                        }`}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
+                      <span>Đang có khách</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOrderTableStatusFilter(
+                          orderTableStatusFilter === 'READY_TO_SERVE' ? 'ALL' : 'READY_TO_SERVE'
+                        )
+                      }
+                      className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${orderTableStatusFilter !== 'ALL' &&
+                        orderTableStatusFilter !== 'READY_TO_SERVE'
+                        ? 'opacity-40'
+                        : ''
+                        }`}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
+                      <span>Chờ mang món</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Lưới thẻ bàn chuẩn giao diện Phục vụ (TableMapPage) */}
+                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3 max-h-60 overflow-y-auto p-1 [scrollbar-gutter:stable]">
+                  {tables
+                    .filter((tbl) => {
+                      const items = tbl.order?.items || [];
+                      const readyCount = items.filter((i) => i.status === 'DONE').length;
+                      const waiterStatus =
+                        readyCount > 0 || tbl.status === 'READY_TO_SERVE'
+                          ? 'READY_TO_SERVE'
+                          : tbl.order || tbl.status !== 'AVAILABLE'
+                            ? 'OCCUPIED'
+                            : 'AVAILABLE';
+                      return (
+                        orderTableStatusFilter === 'ALL' || waiterStatus === orderTableStatusFilter
+                      );
+                    })
+                    .map((tbl) => {
+                      const isSelected = tbl.id === selectedTable?.id;
+                      const items = tbl.order?.items || [];
+                      const readyCount = items.filter((i) => i.status === 'DONE').length;
+                      const draftCount = (orderCartByTable[tbl.id] || []).reduce(
+                        (s, i) => s + i.quantity,
+                        0
+                      );
+                      const isReadyToServe = readyCount > 0 || tbl.status === 'READY_TO_SERVE';
+                      const isOccupied = !isReadyToServe && (Boolean(tbl.order) || tbl.status !== 'AVAILABLE');
+
+                      let cardClass = 'bg-[#DCFCE7]';
+                      let iconColor = 'text-emerald-600';
+                      let subColor = 'text-emerald-800 font-medium';
+                      let statusLabel = 'Bàn trống';
+                      let badgeBg = 'bg-emerald-600 text-white';
+                      let badgeCount = draftCount;
+
+                      if (isReadyToServe) {
+                        cardClass = 'bg-[#FDE68A]/70';
+                        iconColor = 'text-amber-600';
+                        subColor = 'text-amber-800 font-semibold';
+                        statusLabel = 'Chờ mang món';
+                        badgeBg = 'bg-orange-500 text-white';
+                        badgeCount = readyCount;
+                      } else if (isOccupied) {
+                        cardClass = 'bg-[#FECACA]/75';
+                        iconColor = 'text-rose-600';
+                        subColor = 'text-rose-800 font-medium';
+                        statusLabel = 'Đang có khách';
+                        badgeBg = 'bg-rose-500 text-white';
+                        badgeCount = items.length;
+                      }
+
+                      return (
+                        <button
+                          key={tbl.id}
+                          type="button"
+                          onClick={() => handleSelectTable(tbl)}
+                          className={`relative rounded-2xl p-3 flex flex-col items-center justify-center text-center min-h-[88px] transition-all cursor-pointer ${cardClass} ${isSelected
+                            ? 'ring-2 ring-orange-500 shadow-md scale-[1.02]'
+                            : 'hover:scale-[1.01] hover:shadow-xs'
+                            }`}
+                        >
+                          {badgeCount > 0 && (
+                            <span
+                              className={`absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full text-[11px] font-extrabold flex items-center justify-center shadow-sm ${badgeBg}`}
+                            >
+                              {badgeCount}
+                            </span>
+                          )}
+                          <GridTableGlyph className={`w-5 h-5 sm:w-6 sm:h-6 mb-1 ${iconColor}`} />
+                          <span className="text-sm sm:text-base font-extrabold text-slate-900">
+                            {tbl.name}
+                          </span>
+                          <span className={`text-[11px] sm:text-xs mt-0.5 leading-tight ${subColor}`}>
+                            {statusLabel}
+                          </span>
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* Lưới Thực đơn gọi món (Trái) & Giỏ món chuẩn bị gửi bếp (Phải) */}
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
+                {/* CỘT TRÁI: THỰC ĐƠN ĐỂ CHỌN MÓN */}
+                <div className="xl:col-span-7 bg-white rounded-lg p-4 shadow-xs border border-orange-100/80 space-y-3.5">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-100">
+                    <div className="relative w-full sm:w-64 shrink-0">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={orderSearchQuery}
+                        onChange={(e) => setOrderSearchQuery(e.target.value)}
+                        aria-label="Tìm kiếm món ăn"
+                        className="w-full pl-9 pr-3 py-1.5 rounded-md border border-slate-200 text-xs sm:text-sm font-medium outline-none focus:border-orange-500 bg-white"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none flex-1 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => setOrderSelectedCategory('Tất cả')}
+                        className={`px-3 py-1 rounded-md text-xs font-bold border whitespace-nowrap cursor-pointer shrink-0 transition-colors ${orderSelectedCategory === 'Tất cả'
+                          ? 'border-orange-500 bg-orange-500 text-white'
+                          : 'border-slate-200 bg-white text-slate-700 hover:bg-orange-50 hover:text-orange-600'
+                          }`}
+                      >
+                        Tất cả ({menuItems.length})
+                      </button>
+                      {categories.map((cat) => {
+                        const count = menuItems.filter(
+                          (m) => m.categoryId === cat.id || m.categoryName === cat.name
+                        ).length;
+                        return (
+                          <button
+                            key={cat.id || cat.name}
+                            type="button"
+                            onClick={() => setOrderSelectedCategory(cat.name)}
+                            className={`px-3 py-1 rounded-md text-xs font-bold border whitespace-nowrap cursor-pointer shrink-0 transition-colors ${orderSelectedCategory === cat.name
+                              ? 'border-orange-500 bg-orange-500 text-white'
+                              : 'border-slate-200 bg-white text-slate-700 hover:bg-orange-50 hover:text-orange-600'
+                              }`}
+                          >
+                            {cat.name} ({count})
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Danh sách món ăn có thể bấm chọn */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[calc(100vh-380px)] min-h-[340px] overflow-y-auto pr-1 [scrollbar-gutter:stable] content-start">
+                    {filteredOrderMenuItems.length === 0 ? (
+                      <div className="col-span-full py-16 text-center text-slate-400 text-sm">
+                        Không tìm thấy món ăn phù hợp.
+                      </div>
+                    ) : (
+                      filteredOrderMenuItems.map((dish) => {
+                        const isAvail = dish.available !== false;
+                        const inCartItem = currentTableCart.find((i) => i.menuItemId === dish.id);
+                        return (
+                          <div
+                            key={dish.id}
+                            onClick={() => isAvail && handleAddDishToOrderCart(dish)}
+                            className={`relative group rounded-lg border p-2.5 flex flex-col justify-between transition-all ${isAvail
+                              ? 'cursor-pointer bg-white hover:border-orange-400 hover:shadow-xs'
+                              : 'opacity-60 bg-slate-50 cursor-not-allowed border-slate-200'
+                              } ${inCartItem ? 'border-orange-500 ring-1 ring-orange-400 bg-orange-50/20' : 'border-slate-200/80'}`}
+                          >
+                            {!isAvail && (
+                              <span className="absolute top-2 right-2 z-10 px-1.5 py-0.5 rounded bg-rose-500 text-white text-[9px] font-bold uppercase">
+                                Hết hàng
+                              </span>
+                            )}
+                            {inCartItem && (
+                              <span className="absolute top-2 right-2 z-10 px-2 py-0.5 rounded-full bg-orange-500 text-white text-[10px] font-black shadow-xs">
+                                x{inCartItem.quantity}
+                              </span>
+                            )}
+
+                            <div>
+                              <div className="w-full h-24 rounded-md overflow-hidden bg-slate-100 mb-2 border border-orange-100/50">
+                                <img
+                                  src={dish.imageUrl || DEFAULT_DISH_IMAGE}
+                                  alt={dish.name}
+                                  onError={(e) => {
+                                    e.target.src = DEFAULT_DISH_IMAGE;
+                                  }}
+                                  className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${!isAvail ? 'grayscale' : ''}`}
+                                />
+                              </div>
+                              <h3 className="font-bold text-xs sm:text-sm text-slate-900 line-clamp-1">
+                                {dish.name}
+                              </h3>
+                            </div>
+
+                            <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-100">
+                              <span className="text-xs sm:text-sm font-black text-orange-600">
+                                {formatCurrency(dish.priceVnd)}
+                              </span>
+                              <span
+                                className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold ${isAvail
+                                  ? 'bg-orange-100 text-orange-600 group-hover:bg-orange-500 group-hover:text-white'
+                                  : 'bg-slate-200 text-slate-400'
+                                  } transition-colors`}
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* CỘT PHẢI: GIỎ GỌI MÓN CỦA BÀN ĐANG CHỌN */}
+                <div className="xl:col-span-5 sticky top-2 bg-white rounded-lg p-5 shadow-xs border border-orange-100/80 flex flex-col justify-between space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-md bg-orange-100 text-orange-600 flex items-center justify-center">
+                          <ShoppingBag className="w-4 h-4" />
+                        </div>
+                        <h3 className="text-base font-extrabold text-slate-900 leading-tight">
+                          Phiếu gọi món
+                        </h3>
+                      </div>
+
+                      <span className="px-3 py-1 rounded-md bg-orange-500 text-white font-extrabold text-xs">
+                        Bàn: {selectedTable?.name || 'Chưa chọn'}
+                      </span>
+                    </div>
+
+                    {/* Danh sách món trong giỏ chuẩn bị gửi bếp */}
+                    <div className="divide-y divide-slate-100 max-h-[340px] overflow-y-auto pr-1">
+                      {currentTableCart.length === 0 ? (
+                        <div className="py-14 flex flex-col items-center justify-center text-slate-400 text-sm">
+                          <Utensils className="w-8 h-8 text-slate-300 mb-1" />
+                          <p className="font-semibold text-slate-500">Chưa có món nào</p>
+                        </div>
+                      ) : (
+                        currentTableCart.map((item) => (
+                          <div key={item.menuItemId} className="py-3 space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <img
+                                  src={item.imageUrl || DEFAULT_DISH_IMAGE}
+                                  alt={item.name}
+                                  className="w-10 h-10 rounded-md object-cover border border-slate-100 shrink-0"
+                                />
+                                <div className="min-w-0">
+                                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 truncate">
+                                    {item.name}
+                                  </h4>
+                                  <span className="text-xs font-semibold text-orange-600">
+                                    {formatCurrency(item.priceVnd)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateCartItemQty(item.menuItemId, -1)}
+                                  className="w-7 h-7 rounded-md border border-slate-200 hover:bg-slate-100 flex items-center justify-center text-slate-600 cursor-pointer"
+                                >
+                                  <Minus className="w-3.5 h-3.5" />
+                                </button>
+                                <span className="w-7 text-center text-xs sm:text-sm font-black text-slate-900">
+                                  {item.quantity}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateCartItemQty(item.menuItemId, 1)}
+                                  className="w-7 h-7 rounded-md border border-orange-200 bg-orange-50 hover:bg-orange-100 flex items-center justify-center text-orange-600 cursor-pointer"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveCartItem(item.menuItemId)}
+                                  className="p-1.5 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer ml-1"
+                                  title="Xóa món"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Ô nhập ghi chú riêng cho từng món */}
+                            <div className="relative">
+                              <MessageSquare className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                              <input
+                                type="text"
+                                value={item.note || ''}
+                                onChange={(e) =>
+                                  handleUpdateCartItemNote(item.menuItemId, e.target.value)
+                                }
+                                aria-label="Ghi chú món"
+                                className="w-full pl-8 pr-3 py-1 rounded-md bg-slate-50 border border-slate-200/80 text-xs text-slate-700 outline-none focus:border-orange-400 focus:bg-white"
+                              />
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Tổng tiền giỏ gọi món & Nút Gửi xuống bếp */}
+                  <div className="border-t border-slate-100 pt-3 space-y-3">
+                    <div className="flex items-center justify-between text-sm font-bold text-slate-700">
+                      <span>
+                        Tổng cộng ({currentTableCart.reduce((s, i) => s + i.quantity, 0)} món):
+                      </span>
+                      <span className="text-lg font-extrabold text-orange-600">
+                        {formatCurrency(currentCartTotalVnd)}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleSubmitOrderToKitchen}
+                      disabled={currentTableCart.length === 0 || isSubmittingOrder}
+                      className="w-full py-3 px-4 rounded-md bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-md shadow-orange-500/25 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Send className="w-4 h-4" />
+                      <span>
+                        {isSubmittingOrder ? 'Đang gửi...' : 'Gửi xuống bếp'}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ===================================================== */}
+          {/* TAB DÀNH CHO ADMIN: THEO DÕI MÓN (CHỨC NĂNG PHỤC VỤ)   */}
+          {/* ===================================================== */}
+          {isAdmin && activeTab === 'tracking' && (
+            <div className="space-y-4">
+              {/* Sơ đồ bàn chuẩn giao diện Phục vụ */}
+              <div className="bg-white rounded-lg p-4 sm:p-5 shadow-xs border border-orange-100/80 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-md bg-orange-100 text-orange-600 flex items-center justify-center">
+                      <LayoutGrid className="w-4 h-4" />
+                    </div>
+                    <h2 className="text-base sm:text-lg font-extrabold text-slate-900">
+                      Sơ đồ bàn
+                    </h2>
+                  </div>
+
+                  {/* Bộ lọc trạng thái bàn giống bên Phục vụ */}
+                  <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm font-medium text-slate-600">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOrderTableStatusFilter(
+                          orderTableStatusFilter === 'AVAILABLE' ? 'ALL' : 'AVAILABLE'
+                        )
+                      }
+                      className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${orderTableStatusFilter !== 'ALL' && orderTableStatusFilter !== 'AVAILABLE'
+                        ? 'opacity-40'
+                        : ''
+                        }`}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                      <span>Bàn trống</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOrderTableStatusFilter(
+                          orderTableStatusFilter === 'OCCUPIED' ? 'ALL' : 'OCCUPIED'
+                        )
+                      }
+                      className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${orderTableStatusFilter !== 'ALL' && orderTableStatusFilter !== 'OCCUPIED'
+                        ? 'opacity-40'
+                        : ''
+                        }`}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
+                      <span>Đang có khách</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOrderTableStatusFilter(
+                          orderTableStatusFilter === 'READY_TO_SERVE' ? 'ALL' : 'READY_TO_SERVE'
+                        )
+                      }
+                      className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${orderTableStatusFilter !== 'ALL' &&
+                        orderTableStatusFilter !== 'READY_TO_SERVE'
+                        ? 'opacity-40'
+                        : ''
+                        }`}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
+                      <span>Chờ mang món</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Lưới thẻ bàn chuẩn giao diện Phục vụ (TableMapPage) */}
+                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3 max-h-60 overflow-y-auto p-1 [scrollbar-gutter:stable]">
+                  {tables
+                    .filter((tbl) => {
+                      const items = tbl.order?.items || [];
+                      const readyCount = items.filter((i) => i.status === 'DONE').length;
+                      const waiterStatus =
+                        readyCount > 0 || tbl.status === 'READY_TO_SERVE'
+                          ? 'READY_TO_SERVE'
+                          : tbl.order || tbl.status !== 'AVAILABLE'
+                            ? 'OCCUPIED'
+                            : 'AVAILABLE';
+                      return (
+                        orderTableStatusFilter === 'ALL' || waiterStatus === orderTableStatusFilter
+                      );
+                    })
+                    .map((tbl) => {
+                      const isSelected = tbl.id === selectedTable?.id;
+                      const items = tbl.order?.items || [];
+                      const readyCount = items.filter((i) => i.status === 'DONE').length;
+                      const isReadyToServe = readyCount > 0 || tbl.status === 'READY_TO_SERVE';
+                      const isOccupied =
+                        !isReadyToServe && (Boolean(tbl.order) || tbl.status !== 'AVAILABLE');
+
+                      let cardClass = 'bg-[#DCFCE7]';
+                      let iconColor = 'text-emerald-600';
+                      let subColor = 'text-emerald-800 font-medium';
+                      let statusLabel = 'Bàn trống';
+                      let badgeBg = 'bg-emerald-600 text-white';
+                      let badgeCount = 0;
+
+                      if (isReadyToServe) {
+                        cardClass = 'bg-[#FDE68A]/70';
+                        iconColor = 'text-amber-600';
+                        subColor = 'text-amber-800 font-semibold';
+                        statusLabel = 'Chờ mang món';
+                        badgeBg = 'bg-orange-500 text-white';
+                        badgeCount = readyCount;
+                      } else if (isOccupied) {
+                        cardClass = 'bg-[#FECACA]/75';
+                        iconColor = 'text-rose-600';
+                        subColor = 'text-rose-800 font-medium';
+                        statusLabel = 'Đang có khách';
+                        badgeBg = 'bg-rose-500 text-white';
+                        badgeCount = items.length;
+                      }
+
+                      return (
+                        <button
+                          key={tbl.id}
+                          type="button"
+                          onClick={() => handleSelectTable(tbl)}
+                          className={`relative rounded-2xl p-3 flex flex-col items-center justify-center text-center min-h-[88px] transition-all cursor-pointer ${cardClass} ${isSelected
+                            ? 'ring-2 ring-orange-500 shadow-md scale-[1.02]'
+                            : 'hover:scale-[1.01] hover:shadow-xs'
+                            }`}
+                        >
+                          {badgeCount > 0 && (
+                            <span
+                              className={`absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full text-[11px] font-extrabold flex items-center justify-center shadow-sm ${badgeBg}`}
+                            >
+                              {badgeCount}
+                            </span>
+                          )}
+                          <GridTableGlyph className={`w-5 h-5 sm:w-6 sm:h-6 mb-1 ${iconColor}`} />
+                          <span className="text-sm sm:text-base font-extrabold text-slate-900">
+                            {tbl.name}
+                          </span>
+                          <span
+                            className={`text-[11px] sm:text-xs mt-0.5 leading-tight ${subColor}`}
+                          >
+                            {statusLabel}
+                          </span>
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* Nội dung theo dõi chi tiết của bàn đang chọn */}
+              <div className="bg-white rounded-lg p-5 shadow-xs border border-orange-100/80 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <span className="px-3.5 py-1.5 rounded-md bg-orange-500 text-white font-black text-sm">
+                      {selectedTable?.name || 'Chưa chọn bàn'}
+                    </span>
+                    <h3 className="text-base font-extrabold text-slate-900">
+                      {selectedTable?.order
+                        ? `Đơn ${selectedTable.order.orderCode} • Đã phục vụ ${servedItemsCount}/${totalItemsCount} món`
+                        : 'Chưa có đơn hàng'}
+                    </h3>
+                  </div>
+
+                  {/* Bộ lọc trạng thái món trong đơn + nút Gọi thêm món / Thanh toán */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {[
+                      { key: 'ALL', label: `Tất cả (${orderItems.length})` },
+                      {
+                        key: 'DONE',
+                        label: `Chờ phục vụ (${orderItems.filter((i) => i.status === 'DONE').length})`,
+                      },
+                      {
+                        key: 'COOKING',
+                        label: `Đang nấu (${orderItems.filter((i) => i.status === 'COOKING').length})`,
+                      },
+                      {
+                        key: 'PENDING',
+                        label: `Chờ bếp (${orderItems.filter((i) => i.status === 'PENDING').length})`,
+                      },
+                      {
+                        key: 'SERVED',
+                        label: `Đã phục vụ (${orderItems.filter((i) => i.status === 'SERVED').length})`,
+                      },
+                    ].map((f) => (
+                      <button
+                        key={f.key}
+                        type="button"
+                        onClick={() => setTrackingStatusFilter(f.key)}
+                        className={`px-3 py-1.5 rounded-md text-xs font-bold border transition-colors cursor-pointer ${trackingStatusFilter === f.key
+                          ? 'bg-orange-500 border-orange-500 text-white'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-orange-50'
+                          }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('order')}
+                      className="ml-1 px-3 py-1.5 rounded-md bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Gọi thêm món</span>
+                    </button>
+
+                    {selectedTable?.order && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('checkout')}
+                        className="px-3 py-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <CreditCard className="w-3.5 h-3.5 text-orange-500" />
+                        <span>Thanh toán</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Danh sách món ăn trong đơn kèm nút Xác nhận phục vụ / Hủy món */}
+                {orderItems.length === 0 ? (
+                  <div className="py-16 flex flex-col items-center justify-center text-slate-400 text-sm space-y-2">
+                    <BellRing className="w-10 h-10 text-slate-300" />
+                    <p className="font-bold text-slate-600">Chưa có món ăn</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {orderItems
+                      .filter(
+                        (it) =>
+                          trackingStatusFilter === 'ALL' || it.status === trackingStatusFilter
+                      )
+                      .map((item) => {
+                        const isDone = item.status === 'DONE';
+                        const isPending = item.status === 'PENDING';
+                        const isCooking = item.status === 'COOKING';
+                        const isServed = item.status === 'SERVED';
+
+                        return (
+                          <div
+                            key={item.id}
+                            className={`p-3.5 rounded-lg border flex items-center justify-between gap-3 transition-all ${isDone
+                              ? 'bg-emerald-50/70 border-emerald-400 shadow-xs'
+                              : isCooking
+                                ? 'bg-blue-50/40 border-blue-200'
+                                : isPending
+                                  ? 'bg-amber-50/40 border-amber-200'
+                                  : 'bg-slate-50/60 border-slate-200/80'
+                              }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <img
+                                src={item.image || DEFAULT_DISH_IMAGE}
+                                alt={item.name}
+                                className="w-14 h-14 rounded-md object-cover border border-white shadow-xs shrink-0"
+                              />
+                              <div className="min-w-0 space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="px-1.5 py-0.5 rounded bg-slate-200/80 text-slate-700 text-[10px] font-extrabold">
+                                    Lượt {item.round || 1}
+                                  </span>
+                                  <h4 className="font-extrabold text-sm text-slate-900 truncate">
+                                    {item.name}
+                                  </h4>
+                                  <span className="text-xs font-black text-orange-600">
+                                    x{item.quantity}
+                                  </span>
+                                </div>
+
+                                {item.note && (
+                                  <p className="text-xs text-rose-600 font-semibold italic">
+                                    {item.note}
+                                  </p>
+                                )}
+
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold ${isDone
+                                      ? 'bg-emerald-500 text-white'
+                                      : isCooking
+                                        ? 'bg-blue-100 text-blue-700'
+                                        : isPending
+                                          ? 'bg-amber-100 text-amber-800'
+                                          : 'bg-emerald-100 text-emerald-700'
+                                      }`}
+                                  >
+                                    {getOrderItemStatusLabel(item.status)}
+                                  </span>
+                                  <span className="text-xs font-bold text-slate-500">
+                                    {formatCurrency(item.unitPriceVnd * item.quantity)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Các nút thao tác của Phục vụ: Bưng món ra bàn / Hủy món */}
+                            <div className="flex items-center gap-2 shrink-0">
+                              {isDone && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleServeOrderItem(item.id, item.name)}
+                                  className="px-3.5 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                                >
+                                  <CheckCircle2 className="w-4 h-4" />
+                                  <span>Đã phục vụ</span>
+                                </button>
+                              )}
+
+                              {isPending && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCancelOrderItem(item.id, item.name)}
+                                  className="px-3 py-2 rounded-md bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                                >
+                                  <Ban className="w-3.5 h-3.5" />
+                                  <span>Hủy món</span>
+                                </button>
+                              )}
+
+                              {isServed && (
+                                <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 px-2">
+                                  <CheckCircle2 className="w-4 h-4" /> Hoàn tất
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+
+                {/* Thanh hành động cuối đơn: Yêu cầu thanh toán khi đã phục vụ xong hết món */}
+                {selectedTable?.order && totalItemsCount > 0 && (
+                  <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-xs sm:text-sm font-semibold text-slate-600">
+                      Tạm tính:{' '}
+                      <strong className="text-base font-black text-orange-600">
+                        {formatCurrency(subtotal)}
+                      </strong>
+                    </div>
+
+                    <div className="flex items-center gap-2.5">
+                      {selectedTable.order.status !== 'PAYMENT_REQUESTED' &&
+                        servedItemsCount === totalItemsCount && (
+                          <button
+                            type="button"
+                            onClick={handleRequestPaymentForTable}
+                            className="px-4 py-2.5 rounded-md bg-rose-500 hover:bg-rose-600 text-white font-extrabold text-xs sm:text-sm flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                          >
+                            <Receipt className="w-4 h-4" />
+                            <span>Gửi yêu cầu thanh toán</span>
+                          </button>
+                        )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ===================================================== */}
+          {/* TAB 2: QUẢN LÝ THỰC ĐƠN (FR-C03 - CHỈ ADMIN)          */}
+          {/* ===================================================== */}
+          {isAdmin && activeTab === 'menu' && (
             <div className="bg-white rounded-lg p-3.5 sm:p-4 shadow-xs border border-orange-100/80 space-y-3">
               {/* Tiêu đề & Nút Thêm món ăn mới */}
               <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2 border-b border-slate-100">
@@ -1798,9 +2804,9 @@ export default function CashierPage() {
           )}
 
           {/* ===================================================== */}
-          {/* TAB 3: QUẢN LÝ SƠ ĐỒ BÀN (FR-C04)                      */}
+          {/* TAB 3: QUẢN LÝ SƠ ĐỒ BÀN (FR-C04 - CHỈ ADMIN)          */}
           {/* ===================================================== */}
-          {activeTab === 'tables' && (
+          {isAdmin && activeTab === 'tables' && (
             <div className="bg-white rounded-lg p-5 lg:p-6 shadow-xs border border-orange-100/80 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-3">
@@ -2004,9 +3010,9 @@ export default function CashierPage() {
           )}
 
           {/* ===================================================== */}
-          {/* TAB 4: BÁO CÁO DOANH THU (FR-C05)                     */}
+          {/* TAB 4: BÁO CÁO DOANH THU (FR-C05 - CHỈ ADMIN)         */}
           {/* ===================================================== */}
-          {activeTab === 'reports' && (
+          {isAdmin && activeTab === 'reports' && (
             <div className="space-y-6">
               {/* Header & Bộ lọc thời gian chuẩn theo API ?date=YYYY-MM-DD */}
               <div className="flex flex-wrap items-center justify-between gap-4 p-5 bg-white rounded-lg border border-orange-100/70 shadow-xs">
@@ -2202,7 +3208,7 @@ export default function CashierPage() {
                     </span>
                   </div>
                   <p className="text-xs sm:text-sm text-slate-500 font-medium">
-                    {profileUser.roleTitle} • Hệ thống Nhà Hàng ROMS
+                    {profileUser.roleTitle}
                   </p>
                 </div>
               </div>
@@ -2241,46 +3247,9 @@ export default function CashierPage() {
                     </div>
                   </div>
 
-                  {/* Trạng thái hoạt động */}
-                  <div className="py-3 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 text-slate-600 font-medium">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      <span>Trạng thái tài khoản</span>
-                    </div>
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold ${profileUser.active
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
-                      : 'bg-rose-50 text-rose-700 border border-rose-200/60'
-                      }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${profileUser.active ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                      {profileUser.active ? 'Đang hoạt động (Active)' : 'Đã vô hiệu hóa'}
-                    </span>
-                  </div>
 
-                  {/* Mã định danh (ID) */}
-                  <div className="py-3 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 text-slate-600 font-medium">
-                      <span className="text-xs font-bold text-slate-400">ID</span>
-                      <span>Mã định danh (User ID)</span>
-                    </div>
-                    <span className="font-mono text-xs text-slate-500 font-semibold bg-slate-50 px-2.5 py-1 rounded border border-slate-200/60">
-                      {profileUser.id}
-                    </span>
-                  </div>
+
                 </div>
-              </div>
-
-              {/* Nút Đăng xuất an toàn */}
-              <div className="pt-2">
-                <button
-                  onClick={() => {
-                    logout();
-                    navigate('/login', { replace: true });
-                  }}
-                  className="w-full py-3 px-4 rounded-xl border border-rose-200 hover:bg-rose-50 text-rose-600 font-bold text-sm flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-xs"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>Đăng xuất tài khoản</span>
-                </button>
               </div>
             </div>
           )}
@@ -3038,7 +4007,7 @@ export default function CashierPage() {
                   Máy in hóa đơn nhiệt
                 </label>
                 <select className="w-full px-3 py-2 rounded-md border border-slate-200 text-slate-800 font-medium outline-none">
-                  <option>Máy in nhiệt USB (Khổ 80mm) - Mặc định</option>
+                  <option>Máy in nhiệt USB (Khổ 80mm)</option>
                   <option>Máy in hóa đơn mạng LAN (Khổ 80mm)</option>
                   <option>Xuất file PDF</option>
                 </select>
@@ -3050,7 +4019,7 @@ export default function CashierPage() {
                 </label>
                 <input
                   type="text"
-                  value="8% (Theo quy định FR-C02)"
+                  value="8%"
                   disabled
                   className="w-full px-3 py-2 rounded-md border border-slate-200 bg-slate-50 text-slate-500 font-bold"
                 />
