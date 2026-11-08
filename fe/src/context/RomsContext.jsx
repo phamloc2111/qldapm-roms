@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import { DISH_STATUS } from '../utils/constants';
 import { getCurrentTimeStr, getDerivedTableInfo } from '../utils/formatters';
+import { resolveDishImage } from '../utils/dishImages';
 
 const RomsContext = createContext(null);
 
@@ -17,9 +18,6 @@ const API_BASE_URL =
 
 const SESSION_TOKEN_KEY = 'roms_access_token';
 const SESSION_USER_KEY = 'roms_current_user';
-
-const DEFAULT_DISH_IMAGE =
-  'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=80';
 
 function formatInstantToHHMM(isoStr) {
   if (!isoStr) return getCurrentTimeStr();
@@ -186,7 +184,7 @@ export function RomsProvider({ children }) {
         updatedAt: formatInstantToHHMM(itemDto.createdAt || orderDto.submittedAt),
         round: Number(itemDto.round) || 1,
         roundFifo: itemCreatedMs,
-        image: matchedDish?.image || DEFAULT_DISH_IMAGE,
+        image: resolveDishImage(itemDto.name, matchedDish?.image),
       };
     });
 
@@ -236,7 +234,7 @@ export function RomsProvider({ children }) {
           name: item.name,
           description: item.description || '',
           price: Number(item.priceVnd) || 0,
-          image: item.imageUrl || DEFAULT_DISH_IMAGE,
+          image: resolveDishImage(item.name, item.imageUrl),
           available: Boolean(item.available),
         }));
         setMenuItems(mappedMenu);
@@ -245,8 +243,8 @@ export function RomsProvider({ children }) {
         mappedMenu.forEach((m) => localMenuMap.set(String(m.id), m));
         menuMapRef.current = localMenuMap;
 
-        // 2. Nếu là WAITER hoặc ADMIN: Lấy danh sách bàn & danh sách đơn đang hoạt động
-        if (user.role === 'WAITER' || user.role === 'ADMIN') {
+        // 2. Nếu là WAITER, CASHIER hoặc ADMIN: Lấy danh sách bàn & danh sách đơn đang hoạt động
+        if (user.role === 'WAITER' || user.role === 'CASHIER' || user.role === 'ADMIN') {
           const [tablesDto, activeOrdersDto] = await Promise.all([
             apiFetch('/tables', { method: 'GET' }, token),
             apiFetch('/orders/active', { method: 'GET' }, token),
@@ -739,6 +737,7 @@ export function RomsProvider({ children }) {
       notifications,
       markAllNotificationsRead,
       lastSyncTime,
+      apiFetch,
     }),
     [
       currentUser,
@@ -769,6 +768,7 @@ export function RomsProvider({ children }) {
       notifications,
       markAllNotificationsRead,
       lastSyncTime,
+      apiFetch,
     ]
   );
 

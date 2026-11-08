@@ -24,6 +24,20 @@ mvn spring-boot:run
 
 Mặc định ứng dụng dùng H2 in-memory để chạy local nhanh, không cần cài PostgreSQL. API chạy tại `http://localhost:8080`.
 
+## Dữ liệu nhà hàng mẫu
+
+Khi backend khởi động, Flyway tự chạy migration `V4__seed_restaurant_catalog.sql` trên cả H2 local và PostgreSQL (`prod`), gồm:
+
+- 20 danh mục, từ khai vị, món chính, lẩu đến tráng miệng và đồ uống.
+- 50 món: 38 món ăn/tráng miệng và 12 đồ uống, có mô tả khẩu phần và giá tham khảo bằng VND.
+- 25 bàn từ `Bàn 01` đến `Bàn 25`, số ghế phân bố ngẫu nhiên trong các mức 2, 4, 6, 8, 10 và giữ cố định sau khi nạp. Bàn mới đều ở trạng thái `AVAILABLE`.
+
+Migration giữ nguyên danh mục và bàn đã tồn tại cùng tên, bỏ qua món trùng tên trong cùng danh mục; không xóa hay ghi đè dữ liệu hiện có. Vì vậy, database đã có dữ liệu có thể có tổng số bản ghi lớn hơn bộ mẫu. Món mới được bật bán; giá chỉ phục vụ dữ liệu mẫu.
+
+Migration `V6__use_public_menu_image_urls.sql` gán link ảnh HTTPS trực tiếp trên web cho 50 món theo tên và danh mục. Migration thay đường dẫn ảnh local do V5 tạo, URL trống hoặc ảnh salad mặc định cũ; giữ các URL ảnh đã nhập riêng. Danh sách URL nằm trong `fe/src/data/menuImages.json`, trang nguồn được ghi trong `fe/src/data/menuImageSources.json`. Giữ nguyên V5 để không đổi checksum của database đã chạy migration này; V6 tự chuyển các đường dẫn cũ sang link web khi backend khởi động lại.
+
+Khởi động lại backend theo cách đang dùng để nạp dữ liệu, sau đó làm mới giao diện. PostgreSQL lưu dữ liệu qua các lần chạy; H2 in-memory tạo lại dữ liệu khi backend khởi động lại.
+
 ## Kiểm thử
 
 ```bash

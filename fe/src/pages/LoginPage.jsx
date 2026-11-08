@@ -24,6 +24,8 @@ export default function LoginPage() {
 
     if (result.user?.role === 'KITCHEN') {
       navigate('/kitchen', { replace: true });
+    } else if (result.user?.role === 'CASHIER' || result.user?.role === 'ADMIN') {
+      navigate('/cashier', { replace: true });
     } else {
       navigate('/tables', { replace: true });
     }

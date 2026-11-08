@@ -55,9 +55,11 @@ export default function ProfilePage() {
             <span>Vai trò</span>
           </div>
           <span className="text-sm font-bold text-slate-900">
-            {user.roleDisplay}
+            {user.roleDisplay} ({user.role || 'CASHIER'})
           </span>
         </div>
+
+
       </div>
 
       <button

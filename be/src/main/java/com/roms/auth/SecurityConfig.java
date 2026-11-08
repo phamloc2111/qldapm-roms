@@ -1,5 +1,6 @@
 package com.roms.auth;
 
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -38,6 +39,8 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(errors -> errors.authenticationEntryPoint((req, res, ex) -> res.sendError(401)))
             .authorizeHttpRequests(auth -> auth
+                // Preserve the original error status when the servlet container dispatches to /error.
+                .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/health", "/ws").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
@@ -45,19 +48,20 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v1/users").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/users", "/api/v1/users/*/reset-password").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/v1/users/*").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.GET, "/api/v1/tables", "/api/v1/tables/*/current-order", "/api/v1/orders/*").hasAnyRole("WAITER", "ADMIN")
-                .requestMatchers(HttpMethod.GET, "/api/v1/categories", "/api/v1/menu-items").hasAnyRole("WAITER", "KITCHEN", "ADMIN")
-                .requestMatchers(HttpMethod.POST, "/api/v1/orders", "/api/v1/orders/*/items", "/api/v1/orders/*/request-payment", "/api/v1/order-items/*/serve").hasAnyRole("WAITER", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/v1/tables", "/api/v1/tables/*/current-order", "/api/v1/orders/*").hasAnyRole("WAITER", "CASHIER", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/v1/categories", "/api/v1/menu-items").hasAnyRole("WAITER", "KITCHEN", "CASHIER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/orders", "/api/v1/orders/*/items", "/api/v1/order-items/*/serve").hasAnyRole("WAITER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/orders/*/request-payment").hasAnyRole("WAITER", "CASHIER", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/order-items/*/cancel").hasAnyRole("WAITER", "KITCHEN", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/kitchen/queue").hasAnyRole("KITCHEN", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/kitchen/order-items/*/start", "/api/v1/kitchen/order-items/*/done").hasAnyRole("KITCHEN", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/cashier/payment-requests", "/api/v1/orders/*/invoice/preview").hasAnyRole("CASHIER", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/orders/*/pay").hasAnyRole("CASHIER", "ADMIN")
-                .requestMatchers(HttpMethod.GET, "/api/v1/reports/**").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.POST, "/api/v1/tables", "/api/v1/categories", "/api/v1/menu-items").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.PATCH, "/api/v1/menu-items/*/availability").hasAnyRole("KITCHEN", "ADMIN")
-                .requestMatchers(HttpMethod.PATCH, "/api/v1/tables/*", "/api/v1/categories/*", "/api/v1/menu-items/*").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.DELETE, "/api/v1/tables/*", "/api/v1/categories/*", "/api/v1/menu-items/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/v1/reports/**").hasAnyRole("CASHIER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/tables", "/api/v1/categories", "/api/v1/menu-items").hasAnyRole("CASHIER", "ADMIN")
+                .requestMatchers(HttpMethod.PATCH, "/api/v1/menu-items/*/availability").hasAnyRole("KITCHEN", "CASHIER", "ADMIN")
+                .requestMatchers(HttpMethod.PATCH, "/api/v1/tables/*", "/api/v1/categories/*", "/api/v1/menu-items/*").hasAnyRole("CASHIER", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/tables/*", "/api/v1/categories/*", "/api/v1/menu-items/*").hasAnyRole("CASHIER", "ADMIN")
                 .anyRequest().denyAll())
             .addFilterBefore(new TokenFilter(tokens), UsernamePasswordAuthenticationFilter.class);
         return http.build();

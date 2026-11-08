@@ -8,10 +8,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.roms.auth.Role;
+import com.roms.auth.AuthController;
 import com.roms.auth.StompSecurity;
 import java.lang.reflect.Type;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.net.http.WebSocket;
 import java.time.Instant;
 import java.util.Base64;
@@ -115,6 +119,50 @@ class SecurityIntegrationTest extends AuthTestBase {
     }
     private String name() { return "u" + UUID.randomUUID().toString().replace("-", ""); }
 
+    private HttpResponse<String> postOverHttp(String path, String body, String token) throws Exception {
+        var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1" + path))
+                .timeout(Duration.ofSeconds(10))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body));
+        if (token != null) request.header("Authorization", bearer(token));
+        return HttpClient.newHttpClient().send(request.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    @Test
+    void liveHttpUserCreationPreservesValidationAndAuthorizationErrors() throws Exception {
+        // A real servlet container performs ERROR dispatches; MockMvc alone does not.
+        var loginResponse = postOverHttp("/auth/login",
+                json.writeValueAsString(new Login("test-admin", BOOTSTRAP_PASSWORD)), null);
+        assertEquals(200, loginResponse.statusCode());
+        String adminToken = json.readTree(loginResponse.body()).get("accessToken").asText();
+        String username = name();
+        trackNewUsername(username);
+
+        var invalid = postOverHttp("/users", json.writeValueAsString(
+                new AuthController.CreateUser(username, "short", Role.WAITER)), adminToken);
+        assertEquals(400, invalid.statusCode(), invalid.body());
+        assertEquals(400, json.readTree(invalid.body()).get("status").asInt());
+
+        String validBody = json.writeValueAsString(
+                new AuthController.CreateUser(username, "password-for-test", Role.WAITER));
+        var created = postOverHttp("/users", validBody, adminToken);
+        assertEquals(201, created.statusCode(), created.body());
+        var duplicate = postOverHttp("/users", validBody, adminToken);
+        assertEquals(409, duplicate.statusCode(), duplicate.body());
+        var invalidRole = postOverHttp("/users",
+                "{\"username\":\"unused\",\"password\":\"password-for-test\",\"role\":\"ROLE_ADMIN\"}", adminToken);
+        assertEquals(400, invalidRole.statusCode(), invalidRole.body());
+
+        var waiterLogin = postOverHttp("/auth/login",
+                json.writeValueAsString(new Login(username, "password-for-test")), null);
+        assertEquals(200, waiterLogin.statusCode());
+        String waiterToken = json.readTree(waiterLogin.body()).get("accessToken").asText();
+        var forbidden = postOverHttp("/users", validBody, waiterToken);
+        assertEquals(403, forbidden.statusCode(), forbidden.body());
+        assertEquals(401, postOverHttp("/users", validBody, "invalid-token").statusCode());
+        assertEquals(401, postOverHttp("/users", validBody, null).statusCode());
+    }
+
     private String tokenFor(Role role, String admin) throws Exception {
         if (role == Role.ADMIN) return admin;
         String username = name();
@@ -130,8 +178,9 @@ class SecurityIntegrationTest extends AuthTestBase {
         String token = tokenFor(role, admin());
         String id = UUID.randomUUID().toString();
         Set<Role> waiter = Set.of(Role.WAITER, Role.ADMIN);
-        Set<Role> menu = Set.of(Role.WAITER, Role.KITCHEN, Role.ADMIN);
+        Set<Role> waiterCashierAdmin = Set.of(Role.WAITER, Role.CASHIER, Role.ADMIN);
         Set<Role> kitchen = Set.of(Role.KITCHEN, Role.ADMIN);
+        Set<Role> kitchenCashierAdmin = Set.of(Role.KITCHEN, Role.CASHIER, Role.ADMIN);
         Set<Role> cashier = Set.of(Role.CASHIER, Role.ADMIN);
         Set<Role> admins = Set.of(Role.ADMIN);
         Set<Role> allRoles = Set.of(Role.WAITER, Role.KITCHEN, Role.CASHIER, Role.ADMIN);
@@ -139,14 +188,14 @@ class SecurityIntegrationTest extends AuthTestBase {
         // Invalid bodies and nonexistent IDs exercise authorization without modifying business data.
         List<Route> routes = List.of(
                 new Route(HttpMethod.GET, "/auth/me", 200, allRoles),
-                new Route(HttpMethod.GET, "/tables", 200, waiter),
-                new Route(HttpMethod.GET, "/tables/" + id + "/current-order", 404, waiter),
-                new Route(HttpMethod.GET, "/orders/" + id, 404, waiter),
-                new Route(HttpMethod.GET, "/categories", 200, menu),
-                new Route(HttpMethod.GET, "/menu-items", 200, menu),
+                new Route(HttpMethod.GET, "/tables", 200, waiterCashierAdmin),
+                new Route(HttpMethod.GET, "/tables/" + id + "/current-order", 404, waiterCashierAdmin),
+                new Route(HttpMethod.GET, "/orders/" + id, 404, waiterCashierAdmin),
+                new Route(HttpMethod.GET, "/categories", 200, allRoles),
+                new Route(HttpMethod.GET, "/menu-items", 200, allRoles),
                 new Route(HttpMethod.POST, "/orders", 400, waiter),
                 new Route(HttpMethod.POST, "/orders/" + id + "/items", 400, waiter),
-                new Route(HttpMethod.POST, "/orders/" + id + "/request-payment", 404, waiter),
+                new Route(HttpMethod.POST, "/orders/" + id + "/request-payment", 404, waiterCashierAdmin),
                 new Route(HttpMethod.POST, "/order-items/" + id + "/serve", 404, waiter),
                 new Route(HttpMethod.POST, "/order-items/" + id + "/cancel", 404, waiterKitchenAdmin),
                 new Route(HttpMethod.GET, "/kitchen/queue", 200, kitchen),
@@ -155,18 +204,18 @@ class SecurityIntegrationTest extends AuthTestBase {
                 new Route(HttpMethod.GET, "/cashier/payment-requests", 200, cashier),
                 new Route(HttpMethod.GET, "/orders/" + id + "/invoice/preview", 404, cashier),
                 new Route(HttpMethod.POST, "/orders/" + id + "/pay", 404, cashier),
-                new Route(HttpMethod.GET, "/reports/revenue", 200, admins),
-                new Route(HttpMethod.GET, "/reports/top-items", 200, admins),
-                new Route(HttpMethod.POST, "/tables", 400, admins),
-                new Route(HttpMethod.PATCH, "/tables/" + id, 400, admins),
-                new Route(HttpMethod.DELETE, "/tables/" + id, 404, admins),
-                new Route(HttpMethod.POST, "/categories", 400, admins),
-                new Route(HttpMethod.PATCH, "/categories/" + id, 400, admins),
-                new Route(HttpMethod.DELETE, "/categories/" + id, 404, admins),
-                new Route(HttpMethod.POST, "/menu-items", 400, admins),
-                new Route(HttpMethod.PATCH, "/menu-items/" + id, 400, admins),
-                new Route(HttpMethod.PATCH, "/menu-items/" + id + "/availability", 400, kitchen),
-                new Route(HttpMethod.DELETE, "/menu-items/" + id, 404, admins),
+                new Route(HttpMethod.GET, "/reports/revenue", 200, cashier),
+                new Route(HttpMethod.GET, "/reports/top-items", 200, cashier),
+                new Route(HttpMethod.POST, "/tables", 400, cashier),
+                new Route(HttpMethod.PATCH, "/tables/" + id, 400, cashier),
+                new Route(HttpMethod.DELETE, "/tables/" + id, 404, cashier),
+                new Route(HttpMethod.POST, "/categories", 400, cashier),
+                new Route(HttpMethod.PATCH, "/categories/" + id, 400, cashier),
+                new Route(HttpMethod.DELETE, "/categories/" + id, 404, cashier),
+                new Route(HttpMethod.POST, "/menu-items", 400, cashier),
+                new Route(HttpMethod.PATCH, "/menu-items/" + id, 400, cashier),
+                new Route(HttpMethod.PATCH, "/menu-items/" + id + "/availability", 400, kitchenCashierAdmin),
+                new Route(HttpMethod.DELETE, "/menu-items/" + id, 404, cashier),
                 new Route(HttpMethod.GET, "/users", 200, admins),
                 new Route(HttpMethod.POST, "/users", 400, admins),
                 new Route(HttpMethod.PUT, "/users/" + id, 404, admins),

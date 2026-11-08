@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Send, Home, Check } from 'lucide-react';
 import { useRoms } from '../context/RomsContext';
 import { DISH_STATUS } from '../utils/constants';
+import { resolveDishImage, handleDishImageError } from '../utils/dishImages';
 import { RestaurantTableSvg } from '../components/common/TableIcon';
 import DishStatusBadge from '../components/common/DishStatusBadge';
 import { formatCurrency, getOrderSummary } from '../utils/formatters';
@@ -143,7 +144,8 @@ export default function PaymentPage() {
             >
               <div className="flex items-start gap-3 min-w-0 flex-1">
                 <img
-                  src={item.image}
+                  src={resolveDishImage(item.name, item.image)}
+                  onError={handleDishImageError}
                   alt={item.name}
                   className="w-15 h-15 sm:w-16 sm:h-16 rounded-none object-cover shrink-0 bg-slate-100 mt-0.5"
                 />
