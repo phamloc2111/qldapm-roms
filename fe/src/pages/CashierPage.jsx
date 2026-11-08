@@ -40,9 +40,7 @@ import {
 import { useRoms } from '../context/RomsContext';
 import { formatCurrency } from '../utils/formatters';
 import { GridTableGlyph } from '../components/common/TableIcon';
-
-const DEFAULT_DISH_IMAGE =
-  'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=80';
+import { resolveDishImage, handleDishImageError } from '../utils/dishImages';
 
 function getTodayIsoDate() {
   try {
@@ -281,9 +279,7 @@ export default function CashierPage() {
           status: it.status || 'PENDING',
           note: it.note || '',
           round: Number(it.round) || 1,
-          image:
-            menuImageMap?.get(String(it.menuItemId)) ||
-            DEFAULT_DISH_IMAGE,
+          image: resolveDishImage(it.name, menuImageMap?.get(String(it.menuItemId))),
         })),
     };
   }, []);
@@ -314,7 +310,7 @@ export default function CashierPage() {
       const menuImageMap = new Map();
       if (Array.isArray(menuData)) {
         const mappedMenu = menuData.map((m) => {
-          const img = m.imageUrl || DEFAULT_DISH_IMAGE;
+          const img = resolveDishImage(m.name, m.imageUrl);
           menuImageMap.set(String(m.id), img);
           return {
             id: String(m.id),
@@ -323,7 +319,7 @@ export default function CashierPage() {
             name: m.name,
             description: m.description || '',
             priceVnd: Number(m.priceVnd) || 0,
-            imageUrl: img,
+            imageUrl: m.imageUrl || '',
             available: m.available !== false,
             active: m.active !== false,
           };
@@ -589,7 +585,7 @@ export default function CashierPage() {
     if (!apiFetch) return;
 
     const menuImageMap = new Map();
-    menuItems.forEach((m) => menuImageMap.set(String(m.id), m.imageUrl));
+    menuItems.forEach((m) => menuImageMap.set(String(m.id), resolveDishImage(m.name, m.imageUrl)));
 
     try {
       const currentOrder = await apiFetch(`/tables/${tbl.id}/current-order`).catch(() => null);
@@ -767,7 +763,7 @@ export default function CashierPage() {
           name: dishForm.name.trim(),
           description: dishForm.description.trim() || null,
           priceVnd: Math.round(priceNum),
-          imageUrl: dishForm.imageUrl.trim() || DEFAULT_DISH_IMAGE,
+          imageUrl: dishForm.imageUrl.trim() || null,
         }),
       });
 
@@ -778,7 +774,7 @@ export default function CashierPage() {
         name: created.name,
         description: created.description || '',
         priceVnd: Number(created.priceVnd) || 0,
-        imageUrl: created.imageUrl || DEFAULT_DISH_IMAGE,
+        imageUrl: created.imageUrl || '',
         available: created.available !== false,
         active: created.active !== false,
       };
@@ -826,7 +822,7 @@ export default function CashierPage() {
           name: dishForm.name.trim(),
           description: dishForm.description.trim() || null,
           priceVnd: Math.round(priceNum),
-          imageUrl: dishForm.imageUrl.trim() || DEFAULT_DISH_IMAGE,
+          imageUrl: dishForm.imageUrl.trim() || null,
         }),
       });
 
@@ -840,7 +836,7 @@ export default function CashierPage() {
               categoryId: String(updated.categoryId),
               categoryName: updated.categoryName || targetCat.name,
               priceVnd: Number(updated.priceVnd) || 0,
-              imageUrl: updated.imageUrl || m.imageUrl,
+              imageUrl: updated.imageUrl || '',
               description: updated.description || '',
               available: updated.available !== false,
             }
@@ -1129,7 +1125,7 @@ export default function CashierPage() {
             menuItemId: dish.id,
             name: dish.name,
             priceVnd: dish.priceVnd,
-            imageUrl: dish.imageUrl || DEFAULT_DISH_IMAGE,
+            imageUrl: resolveDishImage(dish.name, dish.imageUrl),
             quantity: 1,
             note: '',
           },
@@ -1628,7 +1624,8 @@ export default function CashierPage() {
                             >
                               <div className="col-span-4 flex items-center gap-2.5 min-w-0 pr-1">
                                 <img
-                                  src={item.image || item.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=300&q=80'}
+                                  src={resolveDishImage(item.name, item.image || item.imageUrl)}
+                                  onError={handleDishImageError}
                                   alt={item.name}
                                   className="w-10 h-10 rounded-md object-cover border border-slate-100 shrink-0"
                                 />
@@ -1968,11 +1965,9 @@ export default function CashierPage() {
                             <div>
                               <div className="w-full h-24 rounded-md overflow-hidden bg-slate-100 mb-2 border border-orange-100/50">
                                 <img
-                                  src={dish.imageUrl || DEFAULT_DISH_IMAGE}
+                                  src={resolveDishImage(dish.name, dish.imageUrl)}
                                   alt={dish.name}
-                                  onError={(e) => {
-                                    e.target.src = DEFAULT_DISH_IMAGE;
-                                  }}
+                                  onError={handleDishImageError}
                                   className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${!isAvail ? 'grayscale' : ''}`}
                                 />
                               </div>
@@ -2032,7 +2027,8 @@ export default function CashierPage() {
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2.5 min-w-0">
                                 <img
-                                  src={item.imageUrl || DEFAULT_DISH_IMAGE}
+                                  src={resolveDishImage(item.name, item.imageUrl)}
+                                  onError={handleDishImageError}
                                   alt={item.name}
                                   className="w-10 h-10 rounded-md object-cover border border-slate-100 shrink-0"
                                 />
@@ -2374,7 +2370,8 @@ export default function CashierPage() {
                           >
                             <div className="flex items-center gap-3 min-w-0">
                               <img
-                                src={item.image || DEFAULT_DISH_IMAGE}
+                                src={resolveDishImage(item.name, item.image)}
+                                onError={handleDishImageError}
                                 alt={item.name}
                                 className="w-14 h-14 rounded-md object-cover border border-white shadow-xs shrink-0"
                               />
@@ -2597,11 +2594,9 @@ export default function CashierPage() {
 
                           <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-md overflow-hidden mb-1.5 border border-orange-100/80 shadow-xs bg-slate-50 flex items-center justify-center shrink-0 relative">
                             <img
-                              src={item.imageUrl}
+                              src={resolveDishImage(item.name, item.imageUrl)}
                               alt={item.name}
-                              onError={(e) => {
-                                e.target.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=300&q=80';
-                              }}
+                              onError={handleDishImageError}
                               className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${!isAvailable ? 'grayscale' : ''}`}
                             />
                           </div>

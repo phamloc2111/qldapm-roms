@@ -17,6 +17,7 @@ import {
 import { useRoms } from '../context/RomsContext';
 import { RestaurantTableSvg } from '../components/common/TableIcon';
 import { formatCurrency } from '../utils/formatters';
+import { resolveDishImage, handleDishImageError } from '../utils/dishImages';
 
 export default function MenuOrderPage() {
   const { tableId } = useParams();
@@ -192,7 +193,8 @@ export default function MenuOrderPage() {
               <div className="flex items-center justify-between gap-2.5">
                 <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
                   <img
-                    src={item.image}
+                    src={resolveDishImage(item.name, item.image)}
+                    onError={handleDishImageError}
                     alt={item.name}
                     className="w-12 h-12 sm:w-14 sm:h-14 rounded-none object-cover shrink-0 bg-slate-200"
                   />
@@ -432,7 +434,8 @@ export default function MenuOrderPage() {
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <img
-                        src={dish.image}
+                        src={resolveDishImage(dish.name, dish.image)}
+                        onError={handleDishImageError}
                         alt={dish.name}
                         className="w-15 h-15 sm:w-18 sm:h-18 rounded-none object-cover bg-slate-100 shrink-0"
                       />

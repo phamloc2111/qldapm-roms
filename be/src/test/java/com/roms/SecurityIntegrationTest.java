@@ -8,10 +8,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.roms.auth.Role;
+import com.roms.auth.AuthController;
 import com.roms.auth.StompSecurity;
 import java.lang.reflect.Type;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.net.http.WebSocket;
 import java.time.Instant;
 import java.util.Base64;
@@ -114,6 +118,50 @@ class SecurityIntegrationTest extends AuthTestBase {
                 return null;
     }
     private String name() { return "u" + UUID.randomUUID().toString().replace("-", ""); }
+
+    private HttpResponse<String> postOverHttp(String path, String body, String token) throws Exception {
+        var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1" + path))
+                .timeout(Duration.ofSeconds(10))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body));
+        if (token != null) request.header("Authorization", bearer(token));
+        return HttpClient.newHttpClient().send(request.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    @Test
+    void liveHttpUserCreationPreservesValidationAndAuthorizationErrors() throws Exception {
+        // A real servlet container performs ERROR dispatches; MockMvc alone does not.
+        var loginResponse = postOverHttp("/auth/login",
+                json.writeValueAsString(new Login("test-admin", BOOTSTRAP_PASSWORD)), null);
+        assertEquals(200, loginResponse.statusCode());
+        String adminToken = json.readTree(loginResponse.body()).get("accessToken").asText();
+        String username = name();
+        trackNewUsername(username);
+
+        var invalid = postOverHttp("/users", json.writeValueAsString(
+                new AuthController.CreateUser(username, "short", Role.WAITER)), adminToken);
+        assertEquals(400, invalid.statusCode(), invalid.body());
+        assertEquals(400, json.readTree(invalid.body()).get("status").asInt());
+
+        String validBody = json.writeValueAsString(
+                new AuthController.CreateUser(username, "password-for-test", Role.WAITER));
+        var created = postOverHttp("/users", validBody, adminToken);
+        assertEquals(201, created.statusCode(), created.body());
+        var duplicate = postOverHttp("/users", validBody, adminToken);
+        assertEquals(409, duplicate.statusCode(), duplicate.body());
+        var invalidRole = postOverHttp("/users",
+                "{\"username\":\"unused\",\"password\":\"password-for-test\",\"role\":\"ROLE_ADMIN\"}", adminToken);
+        assertEquals(400, invalidRole.statusCode(), invalidRole.body());
+
+        var waiterLogin = postOverHttp("/auth/login",
+                json.writeValueAsString(new Login(username, "password-for-test")), null);
+        assertEquals(200, waiterLogin.statusCode());
+        String waiterToken = json.readTree(waiterLogin.body()).get("accessToken").asText();
+        var forbidden = postOverHttp("/users", validBody, waiterToken);
+        assertEquals(403, forbidden.statusCode(), forbidden.body());
+        assertEquals(401, postOverHttp("/users", validBody, "invalid-token").statusCode());
+        assertEquals(401, postOverHttp("/users", validBody, null).statusCode());
+    }
 
     private String tokenFor(Role role, String admin) throws Exception {
         if (role == Role.ADMIN) return admin;
