@@ -42,6 +42,7 @@ export default function KitchenPage() {
     categories,
     menuItems,
     advanceDishKitchenStatus,
+    cancelDish,
     toggleDishAvailability,
     refreshData,
     showToast,
@@ -104,7 +105,6 @@ export default function KitchenPage() {
           code: roundNum > 1 ? `${order.code}.${roundNum}` : order.code,
           tableId: order.tableId,
           tableName: order.tableName,
-          priority: order.priority || (roundNum === 1 ? 'PRIORITY' : 'NORMAL'),
           receivedAt,
           fifoKey,
           items: itemsInRound,
@@ -203,29 +203,13 @@ export default function KitchenPage() {
       .filter((group) => group.items.length > 0);
   }, [categories, menuItems, menuSelectedCategory, menuSearchQuery]);
 
-  // Màu sắc header thẻ theo thứ tự ưu tiên FIFO giống thiết kế tham khảo (Đỏ -> Cam -> Xanh dương -> Xanh lá)
+  // Màu sắc header thẻ theo thứ tự FIFO (Đỏ -> Cam -> Xanh dương -> Xanh lá)
   const getTicketBannerStyle = (index) => {
     const styles = [
-      {
-        headerBg: 'bg-[#F04438]',
-        badgeText: 'text-[#F04438]',
-        label: 'P.Ưu tiên',
-      },
-      {
-        headerBg: 'bg-[#F97316]',
-        badgeText: 'text-[#F97316]',
-        label: 'B.Bình thường',
-      },
-      {
-        headerBg: 'bg-[#1570EF]',
-        badgeText: 'text-[#1570EF]',
-        label: 'P.Ưu tiên',
-      },
-      {
-        headerBg: 'bg-[#12B76A]',
-        badgeText: 'text-[#12B76A]',
-        label: 'P.Bình thường',
-      },
+      { headerBg: 'bg-[#F04438]' },
+      { headerBg: 'bg-[#F97316]' },
+      { headerBg: 'bg-[#1570EF]' },
+      { headerBg: 'bg-[#12B76A]' },
     ];
     return styles[index % styles.length];
   };
@@ -283,7 +267,7 @@ export default function KitchenPage() {
             >
               <div>
                 {/* Đầu thẻ màu sắc trực quan: Số đơn + Số bàn + Thời gian chờ */}
-                <div className={`${banner.headerBg} text-white p-4 space-y-2`}>
+                <div className={`${banner.headerBg} text-white p-4`}>
                   <div className="flex items-baseline justify-between gap-2">
                     <div className="flex items-baseline gap-1.5 min-w-0">
                       <span className="text-lg sm:text-xl font-extrabold tracking-tight">
@@ -295,14 +279,6 @@ export default function KitchenPage() {
                     </div>
                     <span className="text-base sm:text-lg font-extrabold shrink-0 tabular-nums">
                       {elapsed}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-end gap-1.5 text-xs font-semibold">
-                    <span
-                      className={`px-3 py-1 rounded-full bg-white text-xs font-extrabold shrink-0 ${banner.badgeText}`}
-                    >
-                      {banner.label}
                     </span>
                   </div>
                 </div>
@@ -355,9 +331,26 @@ export default function KitchenPage() {
                             </span>
                           </div>
 
-                          <span className="text-sm sm:text-base font-extrabold text-slate-800 shrink-0">
-                            x{item.quantity}
-                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-sm sm:text-base font-extrabold text-slate-800">
+                              x{item.quantity}
+                            </span>
+
+                            {item.status === DISH_STATUS.PENDING && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  cancelDish(ticket.orderId, item.id);
+                                }}
+                                title="Hủy món này"
+                                className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                              >
+                                <X className="w-3.5 h-3.5 shrink-0" />
+                                <span>Hủy</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
 
                         {/* Ghi chú đặc biệt nổi bật (FR-K01) */}

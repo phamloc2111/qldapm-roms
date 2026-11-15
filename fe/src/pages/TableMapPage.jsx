@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { RotateCw, Utensils, CreditCard, X } from "lucide-react";
+import { RotateCw, Utensils, CreditCard, X, Search, ChevronDown } from "lucide-react";
 import { useRoms } from "../context/RomsContext";
 import { TABLE_STATUS } from "../utils/constants";
 import {
@@ -15,6 +15,8 @@ export default function TableMapPage() {
     useRoms();
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [capacityFilter, setCapacityFilter] = useState("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
@@ -35,10 +37,33 @@ export default function TableMapPage() {
     setIsDetailOpen(true);
   };
 
-  const filteredTables =
-    statusFilter === "ALL"
-      ? tables
-      : tables.filter((t) => t.status === statusFilter);
+  // Thống kê số lượng bàn theo sức chứa (số chỗ ngồi)
+  const capacityStats = useMemo(() => {
+    const map = new Map();
+    tables.forEach((t) => {
+      const cap = Number(t.capacity) || 4;
+      map.set(cap, (map.get(cap) || 0) + 1);
+    });
+    return Array.from(map.entries())
+      .map(([capacity, count]) => ({ capacity, count }))
+      .sort((a, b) => a.capacity - b.capacity);
+  }, [tables]);
+
+  // Lọc bàn theo trạng thái, sức chứa và từ khóa tìm kiếm
+  const filteredTables = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return tables.filter((t) => {
+      const matchStatus = statusFilter === "ALL" || t.status === statusFilter;
+      const matchCapacity =
+        capacityFilter === "ALL" ||
+        (Number(t.capacity) || 4) === Number(capacityFilter);
+      const matchSearch =
+        !q ||
+        (t.name && t.name.toLowerCase().includes(q)) ||
+        (t.code && t.code.toLowerCase().includes(q));
+      return matchStatus && matchCapacity && matchSearch;
+    });
+  }, [tables, statusFilter, capacityFilter, searchQuery]);
 
   const getTableCardStyle = (table, isSelected) => {
     const selectedEffect = isSelected
@@ -104,6 +129,51 @@ export default function TableMapPage() {
           </button>
         </div>
 
+        {/* Thanh tìm kiếm bàn & Dropdown lọc theo sức chứa ghế (Mobile-first) */}
+        <div className="flex items-center gap-2.5 mb-4 min-w-0">
+          <div className="relative flex-1 min-w-0">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Tìm kiếm bàn"
+              className="w-full pl-9 pr-8 py-2.5 rounded-xl bg-slate-100 border-0 text-xs sm:text-sm font-medium text-slate-800 focus:outline-none transition-all"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg hover:bg-slate-200 text-slate-500 cursor-pointer"
+                aria-label="Xóa tìm kiếm"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="relative shrink-0">
+            <select
+              value={capacityFilter}
+              onChange={(e) =>
+                setCapacityFilter(
+                  e.target.value === "ALL" ? "ALL" : Number(e.target.value),
+                )
+              }
+              aria-label="Lọc bàn theo sức chứa"
+              className="appearance-none pl-3.5 pr-8 py-2.5 rounded-xl bg-slate-100 text-xs sm:text-sm font-bold text-slate-700 focus:outline-none cursor-pointer"
+            >
+              <option value="ALL">Tất cả ({tables.length})</option>
+              {capacityStats.map(({ capacity, count }) => (
+                <option key={capacity} value={capacity}>
+                  Bàn {capacity} chỗ ({count})
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-4 h-4 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+        </div>
+
         {/* Chú thích trạng thái bàn */}
         <div className="flex flex-wrap items-center gap-4 mb-5 text-xs sm:text-sm font-medium text-slate-600">
           <button
@@ -163,42 +233,64 @@ export default function TableMapPage() {
         </div>
 
         {/* Lưới 3 cột hiển thị các bàn */}
-        <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
-          {filteredTables.map((table) => {
-            const isSelected = isDetailOpen && selectedTable?.id === table.id;
-            const style = getTableCardStyle(table, isSelected);
+        {filteredTables.length === 0 ? (
+          <div className="py-12 text-center space-y-2.5">
+            <p className="text-xs sm:text-sm font-bold text-slate-400">
+              Không tìm thấy bàn nào phù hợp với bộ lọc.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter("ALL");
+                setCapacityFilter("ALL");
+                setSearchQuery("");
+              }}
+              className="text-xs sm:text-sm font-bold text-orange-600 hover:underline cursor-pointer"
+            >
+              Đặt lại bộ lọc
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
+            {filteredTables.map((table) => {
+              const isSelected = isDetailOpen && selectedTable?.id === table.id;
+              const style = getTableCardStyle(table, isSelected);
 
-            return (
-              <button
-                key={table.id}
-                onClick={() => handleSelectTable(table.id)}
-                className={`relative rounded-2xl p-2.5 sm:p-5 flex flex-col items-center justify-center text-center min-h-[92px] sm:min-h-[118px] transition-all cursor-pointer ${style.card}`}
-              >
-                {table.badgeCount > 0 && (
+              return (
+                <button
+                  key={table.id}
+                  onClick={() => handleSelectTable(table.id)}
+                  className={`relative rounded-2xl p-2.5 sm:p-5 flex flex-col items-center justify-center text-center min-h-[96px] sm:min-h-[124px] transition-all cursor-pointer ${style.card}`}
+                >
+                  {table.badgeCount > 0 && (
+                    <span
+                      className={`absolute -top-1.5 -right-1.5 sm:-top-2 sm:-right-2 w-5 h-5 sm:w-6 sm:h-6 rounded-full text-[11px] sm:text-xs font-extrabold flex items-center justify-center shadow-sm ${style.badgeBg}`}
+                    >
+                      {table.badgeCount}
+                    </span>
+                  )}
+
+                  <GridTableGlyph
+                    className={`w-5 h-5 sm:w-7 sm:h-7 mb-1 sm:mb-1.5 ${style.iconColor}`}
+                  />
                   <span
-                    className={`absolute -top-1.5 -right-1.5 sm:-top-2 sm:-right-2 w-5 h-5 sm:w-6 sm:h-6 rounded-full text-[11px] sm:text-xs font-extrabold flex items-center justify-center shadow-sm ${style.badgeBg}`}
+                    className={`text-sm sm:text-lg font-extrabold ${style.titleColor}`}
                   >
-                    {table.badgeCount}
+                    {table.code}
                   </span>
-                )}
-
-                <GridTableGlyph
-                  className={`w-5 h-5 sm:w-7 sm:h-7 mb-1 sm:mb-1.5 ${style.iconColor}`}
-                />
-                <span
-                  className={`text-sm sm:text-lg font-extrabold ${style.titleColor}`}
-                >
-                  {table.code}
-                </span>
-                <span
-                  className={`text-[11px] sm:text-sm mt-0.5 leading-tight ${style.subColor}`}
-                >
-                  {table.statusLabel}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+                  <span
+                    className={`text-[11px] sm:text-sm mt-0.5 leading-tight ${style.subColor}`}
+                  >
+                    {table.statusLabel}
+                  </span>
+                  <span className="text-[10px] sm:text-xs text-slate-500 font-semibold mt-0.5">
+                    ({table.capacity || 4} chỗ)
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Khung chi tiết bàn luôn bám sát mép dưới màn hình ở mọi kích thước */}
         {isDetailOpen && selectedTable && (

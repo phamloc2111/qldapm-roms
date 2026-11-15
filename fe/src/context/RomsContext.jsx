@@ -196,7 +196,6 @@ export function RomsProvider({ children }) {
       tableId: String(orderDto.tableId),
       tableName: orderDto.tableName || 'Bàn',
       status: orderDto.status,
-      priority: index % 2 === 0 ? 'PRIORITY' : 'NORMAL',
       fifoOrder: submittedTimeMs,
       guests: 2,
       createdAt: formatInstantToHHMM(orderDto.submittedAt || orderDto.createdAt),
