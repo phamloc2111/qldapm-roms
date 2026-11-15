@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { resolveDishImage, handleDishImageError } from '../utils/dishImages';
 import { useNavigate } from 'react-router-dom';
 import {
   LayoutGrid,
@@ -669,7 +670,8 @@ export default function KitchenPage() {
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <img
-                              src={dish.image}
+                              src={resolveDishImage(dish.name, dish.image)}
+                              onError={handleDishImageError}
                               alt={dish.name}
                               className={`w-12 h-12 object-cover shrink-0 bg-slate-100 ${
                                 !dish.available ? 'grayscale opacity-60' : ''

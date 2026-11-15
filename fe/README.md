@@ -2,6 +2,8 @@
 
 Giao diện người dùng (Frontend UI) cho nhân viên **Phục vụ** và **Nhà bếp** thuộc hệ thống quản lý đặt món nhà hàng **ROMS**, xây dựng bằng **ReactJS + Vite + Tailwind CSS + React Router**, tích hợp trực tiếp với Backend Spring Boot qua REST API và xác thực bảo mật JWT.
 
+Ảnh của 50 món mẫu dùng link HTTPS trực tiếp trên web, ánh xạ theo đúng tên món trong `src/data/menuImages.json`; trang nguồn từng ảnh nằm trong `src/data/menuImageSources.json`. Các màn gọi món, nhà bếp, theo dõi và thu ngân dùng chung `src/utils/dishImages.js`: ưu tiên URL ảnh riêng đã nhập; nếu chưa nhập, còn dùng đường dẫn ảnh local cũ hoặc ảnh salad mặc định cũ thì lấy link web theo tên món. Món chưa có ảnh hoặc tải ảnh lỗi hiển thị ô “Chưa có ảnh”. Form thêm/sửa món để trống URL sẽ lưu `null`, không lưu ảnh mặc định. Ảnh món được tải trực tiếp từ website nguồn, không đóng gói file ảnh món trong frontend.
+
 
 ## 1. Cấu trúc thư mục dự án
 

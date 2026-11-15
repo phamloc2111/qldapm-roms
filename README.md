@@ -174,4 +174,6 @@ Truy cập ứng dụng tại: **`http://localhost:5173`**
 | **Phục vụ** (`WAITER`) | `waiter01` | `password123456` | `/tables` (Sơ đồ bàn) | Xem trạng thái bàn, tạo đơn / gọi thêm món, theo dõi tiến độ món ăn, gửi yêu cầu thanh toán |
 | **Nhà bếp** (`KITCHEN`) | `kitchen01` | `password123456` | `/kitchen` (Màn hình bếp) | Xem hàng đợi món theo thứ tự FIFO, chuyển trạng thái chế biến (*Chờ nấu ➔ Đang nấu ➔ Đã xong*), báo hết hàng / mở bán món |
 | **Thu ngân** (`CASHIER`) | `cashier01` | `password123456` | `/cashier` (Giao diện Thu Ngân)| Thanh toán hóa đơn | 
-|**Quản trị viên** (`ADMIN`)| `admin`| `adminpassword123`| `/cashier` (Giao diện admin| Thanh toán, Gọi món, Theo dõi món, Quản lý menu, Quản lý bàn ăn, Theo dõi doanh thu |
+| **Quản trị viên** (`ADMIN`) | `admin` | `adminpassword123` | `/admin` (Giao diện quản trị) | Thanh toán, Gọi món, Theo dõi món, Quản lý menu, Quản lý bàn ăn, Theo dõi doanh thu |
+
+`ADMIN` được điều hướng đến `/admin`, `CASHIER` đến `/cashier`. Hai route dùng chung màn hình `CashierPage`; tài khoản `ADMIN` được hiển thị thêm các tab quản trị theo vai trò.
