@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useMemo } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Search,
@@ -13,10 +13,10 @@ import {
   CheckCircle2,
   ListChecks,
   Home,
-} from 'lucide-react';
-import { useRoms } from '../context/RomsContext';
-import { RestaurantTableSvg } from '../components/common/TableIcon';
-import { formatCurrency } from '../utils/formatters';
+} from "lucide-react";
+import { useRoms } from "../context/RomsContext";
+import { RestaurantTableSvg } from "../components/common/TableIcon";
+import { formatCurrency } from "../utils/formatters";
 
 export default function MenuOrderPage() {
   const { tableId } = useParams();
@@ -34,16 +34,16 @@ export default function MenuOrderPage() {
     submitCartToKitchen,
   } = useRoms();
 
-  const currentTableId = tableId || selectedTable?.id || '';
+  const currentTableId = tableId || selectedTable?.id || "";
   const currentTable = useMemo(
     () => tables.find((t) => t.id === currentTableId) || tables[0] || null,
-    [tables, currentTableId]
+    [tables, currentTableId],
   );
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [guestCount, setGuestCount] = useState(currentTable?.guests || 2);
-  const [step, setStep] = useState('MENU'); // 'MENU' | 'CONFIRM'
+  const [step, setStep] = useState("MENU"); // 'MENU' | 'CONFIRM'
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [submittedResult, setSubmittedResult] = useState(null);
 
@@ -52,7 +52,7 @@ export default function MenuOrderPage() {
   const filteredMenu = useMemo(() => {
     return menuItems.filter((item) => {
       const matchCategory =
-        selectedCategory === 'ALL' || item.categoryId === selectedCategory;
+        selectedCategory === "ALL" || item.categoryId === selectedCategory;
       const q = searchQuery.trim().toLowerCase();
       const matchSearch =
         !q ||
@@ -64,7 +64,7 @@ export default function MenuOrderPage() {
 
   const groupedMenu = useMemo(() => {
     return categories
-      .filter((cat) => cat.id !== 'ALL')
+      .filter((cat) => cat.id !== "ALL")
       .map((cat) => ({
         ...cat,
         items: filteredMenu.filter((item) => item.categoryId === cat.id),
@@ -74,7 +74,10 @@ export default function MenuOrderPage() {
 
   const cartSummary = useMemo(() => {
     const totalItemsCount = cartItems.reduce((sum, i) => sum + i.quantity, 0);
-    const newSubtotal = cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+    const newSubtotal = cartItems.reduce(
+      (sum, i) => sum + i.price * i.quantity,
+      0,
+    );
     const existingSubtotal = currentTable?.orderSummary?.subtotal || 0;
     return {
       totalItemsCount,
@@ -107,7 +110,9 @@ export default function MenuOrderPage() {
         <div className="p-4 bg-[#FFF8F1] text-left space-y-2 text-xs sm:text-sm">
           <div className="flex justify-between gap-2">
             <span className="text-slate-500">Bàn:</span>
-            <span className="font-bold text-slate-900">{currentTable?.name || '—'}</span>
+            <span className="font-bold text-slate-900">
+              {currentTable?.name || "—"}
+            </span>
           </div>
           <div className="flex justify-between gap-2">
             <span className="text-slate-500">Đơn hàng:</span>
@@ -119,14 +124,14 @@ export default function MenuOrderPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
           <button
-            onClick={() => navigate('/tracking')}
+            onClick={() => navigate("/tracking")}
             className="py-3.5 px-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm flex items-center justify-center gap-2 cursor-pointer"
           >
             <ListChecks className="w-4 h-4 shrink-0" />
             <span>Theo dõi món</span>
           </button>
           <button
-            onClick={() => navigate('/tables')}
+            onClick={() => navigate("/tables")}
             className="py-3.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm flex items-center justify-center gap-2 cursor-pointer"
           >
             <Home className="w-4 h-4 shrink-0" />
@@ -140,13 +145,13 @@ export default function MenuOrderPage() {
   const isAddingToOpenOrder = Boolean(currentTable?.activeOrder);
 
   // BƯỚC 2: XÁC NHẬN ĐƠN HÀNG & GỬI XUỐNG BẾP
-  if (step === 'CONFIRM' && cartItems.length > 0) {
+  if (step === "CONFIRM" && cartItems.length > 0) {
     return (
       <div className="max-w-2xl w-full min-w-0 mx-auto bg-white p-4 sm:p-6 shadow-sm space-y-4 sm:space-y-5 animate-fade-in">
         {/* Tiêu đề <- Đơn hàng */}
         <div className="flex items-center gap-2.5">
           <button
-            onClick={() => setStep('MENU')}
+            onClick={() => setStep("MENU")}
             className="p-2 rounded-xl hover:bg-orange-50 text-slate-700 hover:text-orange-600 transition-colors shrink-0 cursor-pointer"
             aria-label="Quay lại thực đơn"
           >
@@ -155,7 +160,7 @@ export default function MenuOrderPage() {
           <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 truncate">
             {isAddingToOpenOrder
               ? `Đơn hàng ${currentTable.activeOrder.code}`
-              : 'Đơn hàng mới'}
+              : "Đơn hàng mới"}
           </h1>
         </div>
 
@@ -175,7 +180,9 @@ export default function MenuOrderPage() {
               min={1}
               max={20}
               value={guestCount}
-              onChange={(e) => setGuestCount(Math.max(1, Number(e.target.value) || 1))}
+              onChange={(e) =>
+                setGuestCount(Math.max(1, Number(e.target.value) || 1))
+              }
               className="w-10 text-center py-0.5 px-1 bg-white border-0 font-bold text-slate-900 focus:outline-none"
             />
             <span>người</span>
@@ -208,7 +215,9 @@ export default function MenuOrderPage() {
 
                 <div className="inline-flex items-center gap-2 bg-slate-100 rounded-full p-1 shrink-0">
                   <button
-                    onClick={() => updateCartQuantity(currentTable.id, item.dishId, -1)}
+                    onClick={() =>
+                      updateCartQuantity(currentTable.id, item.dishId, -1)
+                    }
                     className="w-7 h-7 rounded-full bg-white hover:bg-slate-50 text-slate-600 flex items-center justify-center font-bold cursor-pointer"
                   >
                     <Minus className="w-3.5 h-3.5" />
@@ -217,7 +226,9 @@ export default function MenuOrderPage() {
                     {item.quantity}
                   </span>
                   <button
-                    onClick={() => updateCartQuantity(currentTable.id, item.dishId, 1)}
+                    onClick={() =>
+                      updateCartQuantity(currentTable.id, item.dishId, 1)
+                    }
                     className="w-7 h-7 rounded-full bg-white hover:bg-orange-50 text-orange-600 flex items-center justify-center font-bold cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -239,7 +250,9 @@ export default function MenuOrderPage() {
                 />
                 {item.note ? (
                   <button
-                    onClick={() => updateCartNote(currentTable.id, item.dishId, '')}
+                    onClick={() =>
+                      updateCartNote(currentTable.id, item.dishId, "")
+                    }
                     className="absolute right-2.5 text-slate-400 hover:text-slate-700 cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -261,8 +274,8 @@ export default function MenuOrderPage() {
         <button
           type="button"
           onClick={() => {
-            setStep('MENU');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            setStep("MENU");
+            window.scrollTo({ top: 0, behavior: "smooth" });
           }}
           className="w-full py-2.5 px-4 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-600 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
         >
@@ -308,7 +321,9 @@ export default function MenuOrderPage() {
               <div className="bg-[#FFF4E8] p-3.5 space-y-1.5 text-xs sm:text-sm">
                 <div className="flex justify-between">
                   <span className="text-slate-600">Bàn:</span>
-                  <span className="font-bold text-slate-900">{currentTable.name}</span>
+                  <span className="font-bold text-slate-900">
+                    {currentTable.name}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-600">Số lượng:</span>
@@ -354,7 +369,7 @@ export default function MenuOrderPage() {
       {/* Tiêu đề <- Thực đơn */}
       <div className="flex items-center gap-2.5">
         <button
-          onClick={() => navigate('/tables')}
+          onClick={() => navigate("/tables")}
           className="p-2 rounded-xl hover:bg-orange-50 text-slate-700 hover:text-orange-600 transition-colors shrink-0 cursor-pointer"
           aria-label="Quay lại"
         >
@@ -377,7 +392,7 @@ export default function MenuOrderPage() {
         />
         {searchQuery && (
           <button
-            onClick={() => setSearchQuery('')}
+            onClick={() => setSearchQuery("")}
             className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg hover:bg-slate-200 text-slate-500 cursor-pointer"
             aria-label="Xóa tìm kiếm"
           >
@@ -396,8 +411,8 @@ export default function MenuOrderPage() {
               onClick={() => setSelectedCategory(cat.id)}
               className={`px-4 py-2 rounded-full text-xs sm:text-sm font-bold whitespace-nowrap transition-all cursor-pointer ${
                 active
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-orange-50 hover:text-orange-600'
+                  ? "bg-orange-500 text-white"
+                  : "bg-slate-100 text-slate-700 hover:bg-orange-50 hover:text-orange-600"
               }`}
             >
               {cat.name}
@@ -409,7 +424,7 @@ export default function MenuOrderPage() {
       {/* Danh sách món ăn tách theo từng danh mục có tiêu đề phía trước */}
       <div
         className={`space-y-6 ${
-          cartSummary.totalItemsCount > 0 ? 'pb-16 md:pb-0' : ''
+          cartSummary.totalItemsCount > 0 ? "pb-16 md:pb-0" : ""
         }`}
       >
         {groupedMenu.map((group) => (
@@ -427,7 +442,7 @@ export default function MenuOrderPage() {
                   <div
                     key={dish.id}
                     className={`py-3.5 first:pt-2 last:pb-1 bg-transparent rounded-none flex items-center justify-between gap-2.5 sm:gap-4 ${
-                      !dish.available ? 'opacity-60' : ''
+                      !dish.available ? "opacity-60" : ""
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -457,10 +472,13 @@ export default function MenuOrderPage() {
 
                     {/* Nút thêm món (+) hoặc bộ điều chỉnh số lượng (- 1 +) */}
                     <div className="shrink-0">
-                      {!dish.available || !currentTable ? null : quantity > 0 ? (
+                      {!dish.available || !currentTable ? null : quantity >
+                        0 ? (
                         <div className="inline-flex items-center gap-2 bg-slate-100 rounded-full p-1">
                           <button
-                            onClick={() => updateCartQuantity(currentTable.id, dish.id, -1)}
+                            onClick={() =>
+                              updateCartQuantity(currentTable.id, dish.id, -1)
+                            }
                             className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white text-slate-700 hover:bg-slate-50 flex items-center justify-center font-bold cursor-pointer"
                             aria-label="Giảm số lượng"
                           >
@@ -470,7 +488,9 @@ export default function MenuOrderPage() {
                             {quantity}
                           </span>
                           <button
-                            onClick={() => updateCartQuantity(currentTable.id, dish.id, 1)}
+                            onClick={() =>
+                              updateCartQuantity(currentTable.id, dish.id, 1)
+                            }
                             className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white text-orange-600 hover:bg-orange-50 flex items-center justify-center font-bold cursor-pointer"
                             aria-label="Tăng số lượng"
                           >
@@ -501,8 +521,8 @@ export default function MenuOrderPage() {
           <div className="max-w-2xl mx-auto flex items-center justify-between gap-2 sm:gap-3">
             <button
               onClick={() => {
-                setStep('CONFIRM');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                setStep("CONFIRM");
+                window.scrollTo({ top: 0, behavior: "smooth" });
               }}
               className="flex items-center gap-2.5 sm:gap-3 text-left cursor-pointer"
             >
@@ -513,15 +533,15 @@ export default function MenuOrderPage() {
                 </span>
               </div>
               <p className="text-xs sm:text-base font-extrabold text-slate-900">
-                {cartSummary.totalItemsCount} món •{' '}
+                {cartSummary.totalItemsCount} món{" "}
                 {formatCurrency(cartSummary.newSubtotal)}
               </p>
             </button>
 
             <button
               onClick={() => {
-                setStep('CONFIRM');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                setStep("CONFIRM");
+                window.scrollTo({ top: 0, behavior: "smooth" });
               }}
               className="py-3 px-5 sm:px-6 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all bg-orange-500 hover:bg-orange-600 text-white cursor-pointer"
             >

@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Clock,
@@ -7,12 +7,12 @@ import {
   XCircle,
   Check,
   PlusCircle,
-} from 'lucide-react';
-import { useRoms } from '../context/RomsContext';
-import { DISH_STATUS } from '../utils/constants';
-import { RestaurantTableSvg } from '../components/common/TableIcon';
-import DishStatusBadge from '../components/common/DishStatusBadge';
-import { getOrderSummary } from '../utils/formatters';
+} from "lucide-react";
+import { useRoms } from "../context/RomsContext";
+import { DISH_STATUS } from "../utils/constants";
+import { RestaurantTableSvg } from "../components/common/TableIcon";
+import DishStatusBadge from "../components/common/DishStatusBadge";
+import { getOrderSummary } from "../utils/formatters";
 
 export default function OrderTrackingPage() {
   const navigate = useNavigate();
@@ -32,16 +32,13 @@ export default function OrderTrackingPage() {
         (t) =>
           Boolean(t.activeOrder) &&
           !t.orderSummary?.isCompleted &&
-          t.orderSummary?.remainingToServeCount > 0
+          t.orderSummary?.remainingToServeCount > 0,
       ),
-    [tables]
+    [tables],
   );
 
   const currentTable = useMemo(() => {
-    if (
-      selectedTable &&
-      activeTables.some((t) => t.id === selectedTable.id)
-    ) {
+    if (selectedTable && activeTables.some((t) => t.id === selectedTable.id)) {
       return selectedTable;
     }
     return activeTables[0] || null;
@@ -66,7 +63,7 @@ export default function OrderTrackingPage() {
         (i) =>
           i.status === DISH_STATUS.PENDING ||
           i.status === DISH_STATUS.COOKING ||
-          i.status === DISH_STATUS.DONE
+          i.status === DISH_STATUS.DONE,
       );
       if (hasUnfinished) {
         uncompletedItems.push(...itemsInRound);
@@ -81,22 +78,25 @@ export default function OrderTrackingPage() {
     };
   }, [activeOrder]);
 
-  const summary = useMemo(() => getOrderSummary(trackingOrder), [trackingOrder]);
+  const summary = useMemo(
+    () => getOrderSummary(trackingOrder),
+    [trackingOrder],
+  );
 
   const getTimelineNodeStyle = (status) => {
     switch (status) {
       case DISH_STATUS.PENDING:
-        return 'bg-orange-500 text-white';
+        return "bg-orange-500 text-white";
       case DISH_STATUS.COOKING:
-        return 'bg-sky-500 text-white';
+        return "bg-sky-500 text-white";
       case DISH_STATUS.DONE:
-        return 'bg-emerald-500 text-white';
+        return "bg-emerald-500 text-white";
       case DISH_STATUS.SERVED:
-        return 'bg-slate-400 text-white';
+        return "bg-slate-400 text-white";
       case DISH_STATUS.CANCELLED:
-        return 'bg-rose-500 text-white';
+        return "bg-rose-500 text-white";
       default:
-        return 'bg-orange-500 text-white';
+        return "bg-orange-500 text-white";
     }
   };
 
@@ -112,8 +112,8 @@ export default function OrderTrackingPage() {
                 onClick={() => setSelectedTableId(t.id)}
                 className={`px-5 py-2.5 sm:px-6 sm:py-3 rounded-xl text-sm sm:text-base font-extrabold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
                   isSelected
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-slate-100 text-slate-700 hover:bg-orange-50 hover:text-orange-600'
+                    ? "bg-orange-500 text-white"
+                    : "bg-slate-100 text-slate-700 hover:bg-orange-50 hover:text-orange-600"
                 }`}
               >
                 <span>{t.name}</span>
@@ -127,7 +127,7 @@ export default function OrderTrackingPage() {
       <div className="w-full min-w-0 bg-white p-4 sm:p-6 shadow-sm space-y-5">
         <div className="flex items-center gap-2">
           <button
-            onClick={() => navigate('/tables')}
+            onClick={() => navigate("/tables")}
             className="p-2 rounded-xl hover:bg-orange-50 text-orange-600 transition-colors cursor-pointer"
             aria-label="Quay về sơ đồ bàn"
           >
@@ -141,7 +141,7 @@ export default function OrderTrackingPage() {
         {!trackingOrder ? (
           <div className="py-12 text-center space-y-3">
             <button
-              onClick={() => navigate('/tables')}
+              onClick={() => navigate("/tables")}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-500 text-white font-bold text-sm cursor-pointer"
             >
               <PlusCircle className="w-4 h-4" />
@@ -160,7 +160,7 @@ export default function OrderTrackingPage() {
                     {trackingOrder.tableName}
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-600 font-medium mt-0.5">
-                    Đơn {trackingOrder.code} • {trackingOrder.createdAt}
+                    Đơn {trackingOrder.code} {trackingOrder.createdAt}
                   </p>
                 </div>
               </div>
@@ -168,8 +168,8 @@ export default function OrderTrackingPage() {
               <span
                 className={`inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 text-xs sm:text-sm font-bold ${
                   summary.isCompleted
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : 'bg-orange-200/60 text-orange-700'
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-orange-200/60 text-orange-700"
                 }`}
               >
                 {summary.isCompleted ? (
@@ -184,10 +184,13 @@ export default function OrderTrackingPage() {
             {/* Danh sách từng món kèm trục Timeline dọc: mỗi thông tin 1 hàng theo thứ tự Tên món, Số lượng, Ghi chú, Trạng thái */}
             <div className="relative pl-6 sm:pl-8 divide-y divide-slate-200 before:content-[''] before:absolute before:left-2.5 sm:before:left-3.5 before:top-6 before:bottom-6 before:w-0.5 before:bg-slate-200">
               {trackingOrder.items.map((item) => (
-                <div key={item.id} className="relative min-w-0 py-3.5 first:pt-1 last:pb-1">
+                <div
+                  key={item.id}
+                  className="relative min-w-0 py-3.5 first:pt-1 last:pb-1"
+                >
                   <span
                     className={`absolute -left-6 sm:-left-8 top-6 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold z-10 ${getTimelineNodeStyle(
-                      item.status
+                      item.status,
                     )}`}
                   >
                     {item.status === DISH_STATUS.SERVED ||
@@ -211,8 +214,8 @@ export default function OrderTrackingPage() {
                         <h3
                           className={`text-sm sm:text-base font-extrabold leading-snug ${
                             item.status === DISH_STATUS.CANCELLED
-                              ? 'line-through text-slate-400'
-                              : 'text-slate-900'
+                              ? "line-through text-slate-400"
+                              : "text-slate-900"
                           }`}
                         >
                           {item.name}
@@ -240,7 +243,9 @@ export default function OrderTrackingPage() {
                     <div className="flex items-center gap-1.5 flex-wrap sm:justify-end shrink-0">
                       {item.status === DISH_STATUS.DONE && (
                         <button
-                          onClick={() => markDishServed(trackingOrder.id, item.id)}
+                          onClick={() =>
+                            markDishServed(trackingOrder.id, item.id)
+                          }
                           className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer"
                         >
                           <CheckCircle2 className="w-4 h-4 shrink-0" />

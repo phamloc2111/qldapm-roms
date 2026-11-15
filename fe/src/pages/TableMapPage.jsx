@@ -1,17 +1,20 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { RotateCw, Utensils, CreditCard, X } from 'lucide-react';
-import { useRoms } from '../context/RomsContext';
-import { TABLE_STATUS } from '../utils/constants';
-import { GridTableGlyph, RestaurantTableSvg } from '../components/common/TableIcon';
-import DishStatusBadge from '../components/common/DishStatusBadge';
-import { formatCurrency } from '../utils/formatters';
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { RotateCw, Utensils, CreditCard, X } from "lucide-react";
+import { useRoms } from "../context/RomsContext";
+import { TABLE_STATUS } from "../utils/constants";
+import {
+  GridTableGlyph,
+  RestaurantTableSvg,
+} from "../components/common/TableIcon";
+import DishStatusBadge from "../components/common/DishStatusBadge";
+import { formatCurrency } from "../utils/formatters";
 
 export default function TableMapPage() {
   const { tables, selectedTable, setSelectedTableId, refreshData, showToast } =
     useRoms();
   const navigate = useNavigate();
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState("ALL");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
@@ -33,53 +36,53 @@ export default function TableMapPage() {
   };
 
   const filteredTables =
-    statusFilter === 'ALL'
+    statusFilter === "ALL"
       ? tables
       : tables.filter((t) => t.status === statusFilter);
 
   const getTableCardStyle = (table, isSelected) => {
     const selectedEffect = isSelected
-      ? 'shadow-md scale-[1.02]'
-      : 'hover:scale-[1.01] hover:shadow-xs';
+      ? "shadow-md scale-[1.02]"
+      : "hover:scale-[1.01] hover:shadow-xs";
 
     switch (table.status) {
       case TABLE_STATUS.READY_TO_SERVE:
         return {
           card: `bg-[#FDE68A]/70 ${selectedEffect}`,
-          iconColor: 'text-amber-600',
-          titleColor: 'text-slate-900',
-          subColor: 'text-amber-800 font-semibold',
-          badgeBg: 'bg-orange-500 text-white',
+          iconColor: "text-amber-600",
+          titleColor: "text-slate-900",
+          subColor: "text-amber-800 font-semibold",
+          badgeBg: "bg-orange-500 text-white",
         };
       case TABLE_STATUS.OCCUPIED:
         return {
           card: `bg-[#FECACA]/75 ${selectedEffect}`,
-          iconColor: 'text-rose-600',
-          titleColor: 'text-slate-900',
-          subColor: 'text-rose-800 font-medium',
-          badgeBg: 'bg-rose-500 text-white',
+          iconColor: "text-rose-600",
+          titleColor: "text-slate-900",
+          subColor: "text-rose-800 font-medium",
+          badgeBg: "bg-rose-500 text-white",
         };
       case TABLE_STATUS.AVAILABLE:
       default:
         return {
           card: `bg-[#DCFCE7] ${selectedEffect}`,
-          iconColor: 'text-emerald-600',
-          titleColor: 'text-slate-900',
-          subColor: 'text-emerald-800 font-medium',
-          badgeBg: 'bg-emerald-600 text-white',
+          iconColor: "text-emerald-600",
+          titleColor: "text-slate-900",
+          subColor: "text-emerald-800 font-medium",
+          badgeBg: "bg-emerald-600 text-white",
         };
     }
   };
 
   const getTableSubtitleText = (table) => {
-    if (!table) return '';
+    if (!table) return "";
     if (table.status === TABLE_STATUS.READY_TO_SERVE) {
       return `Có ${table.orderSummary?.readyToServeCount || 1} món đã sẵn sàng`;
     }
     if (table.status === TABLE_STATUS.OCCUPIED) {
-      return `Đơn ${table.activeOrder?.code} • ${table.orderSummary?.totalDishes} món`;
+      return `Đơn ${table.activeOrder?.code}  ${table.orderSummary?.totalDishes} món`;
     }
-    return 'Bàn trống';
+    return "Bàn trống";
   };
 
   return (
@@ -96,7 +99,7 @@ export default function TableMapPage() {
             aria-label="Làm mới"
           >
             <RotateCw
-              className={`w-5 h-5 ${isRefreshing ? 'animate-spin text-orange-500' : ''}`}
+              className={`w-5 h-5 ${isRefreshing ? "animate-spin text-orange-500" : ""}`}
             />
           </button>
         </div>
@@ -106,13 +109,15 @@ export default function TableMapPage() {
           <button
             onClick={() =>
               setStatusFilter(
-                statusFilter === TABLE_STATUS.AVAILABLE ? 'ALL' : TABLE_STATUS.AVAILABLE
+                statusFilter === TABLE_STATUS.AVAILABLE
+                  ? "ALL"
+                  : TABLE_STATUS.AVAILABLE,
               )
             }
             className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${
-              statusFilter !== 'ALL' && statusFilter !== TABLE_STATUS.AVAILABLE
-                ? 'opacity-40'
-                : ''
+              statusFilter !== "ALL" && statusFilter !== TABLE_STATUS.AVAILABLE
+                ? "opacity-40"
+                : ""
             }`}
           >
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
@@ -122,13 +127,15 @@ export default function TableMapPage() {
           <button
             onClick={() =>
               setStatusFilter(
-                statusFilter === TABLE_STATUS.OCCUPIED ? 'ALL' : TABLE_STATUS.OCCUPIED
+                statusFilter === TABLE_STATUS.OCCUPIED
+                  ? "ALL"
+                  : TABLE_STATUS.OCCUPIED,
               )
             }
             className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${
-              statusFilter !== 'ALL' && statusFilter !== TABLE_STATUS.OCCUPIED
-                ? 'opacity-40'
-                : ''
+              statusFilter !== "ALL" && statusFilter !== TABLE_STATUS.OCCUPIED
+                ? "opacity-40"
+                : ""
             }`}
           >
             <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
@@ -139,14 +146,15 @@ export default function TableMapPage() {
             onClick={() =>
               setStatusFilter(
                 statusFilter === TABLE_STATUS.READY_TO_SERVE
-                  ? 'ALL'
-                  : TABLE_STATUS.READY_TO_SERVE
+                  ? "ALL"
+                  : TABLE_STATUS.READY_TO_SERVE,
               )
             }
             className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${
-              statusFilter !== 'ALL' && statusFilter !== TABLE_STATUS.READY_TO_SERVE
-                ? 'opacity-40'
-                : ''
+              statusFilter !== "ALL" &&
+              statusFilter !== TABLE_STATUS.READY_TO_SERVE
+                ? "opacity-40"
+                : ""
             }`}
           >
             <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
@@ -174,11 +182,17 @@ export default function TableMapPage() {
                   </span>
                 )}
 
-                <GridTableGlyph className={`w-5 h-5 sm:w-7 sm:h-7 mb-1 sm:mb-1.5 ${style.iconColor}`} />
-                <span className={`text-sm sm:text-lg font-extrabold ${style.titleColor}`}>
+                <GridTableGlyph
+                  className={`w-5 h-5 sm:w-7 sm:h-7 mb-1 sm:mb-1.5 ${style.iconColor}`}
+                />
+                <span
+                  className={`text-sm sm:text-lg font-extrabold ${style.titleColor}`}
+                >
                   {table.code}
                 </span>
-                <span className={`text-[11px] sm:text-sm mt-0.5 leading-tight ${style.subColor}`}>
+                <span
+                  className={`text-[11px] sm:text-sm mt-0.5 leading-tight ${style.subColor}`}
+                >
                   {table.statusLabel}
                 </span>
               </button>
@@ -198,13 +212,14 @@ export default function TableMapPage() {
                       !selectedTable.orderSummary?.isCompleted
                     ) {
                       setSelectedTableId(selectedTable.id);
-                      navigate('/tracking');
+                      navigate("/tracking");
                     }
                   }}
                   className={`flex items-center gap-3 min-w-0 flex-1 ${
-                    selectedTable.activeOrder && !selectedTable.orderSummary?.isCompleted
-                      ? 'cursor-pointer hover:opacity-85 transition-opacity'
-                      : ''
+                    selectedTable.activeOrder &&
+                    !selectedTable.orderSummary?.isCompleted
+                      ? "cursor-pointer hover:opacity-85 transition-opacity"
+                      : ""
                   }`}
                 >
                   <div className="w-10 h-10 sm:w-11 sm:h-11 text-orange-600 flex items-center justify-center shrink-0">
@@ -242,7 +257,7 @@ export default function TableMapPage() {
                 <div
                   onClick={() => {
                     setSelectedTableId(selectedTable.id);
-                    navigate('/tracking');
+                    navigate("/tracking");
                   }}
                   className="max-h-40 overflow-y-auto divide-y divide-slate-200 cursor-pointer"
                 >
@@ -253,9 +268,9 @@ export default function TableMapPage() {
                     >
                       <span
                         className={`font-semibold truncate ${
-                          item.status === 'CANCELLED'
-                            ? 'line-through text-slate-400'
-                            : 'text-slate-800'
+                          item.status === "CANCELLED"
+                            ? "line-through text-slate-400"
+                            : "text-slate-800"
                         }`}
                       >
                         {item.name} × {item.quantity}
@@ -279,7 +294,10 @@ export default function TableMapPage() {
                 <button
                   onClick={() => {
                     if (!selectedTable.activeOrder) {
-                      showToast(`${selectedTable.name} chưa có đơn hàng.`, 'error');
+                      showToast(
+                        `${selectedTable.name} chưa có đơn hàng.`,
+                        "error",
+                      );
                       return;
                     }
                     navigate(`/payment/${selectedTable.id}`);
@@ -287,8 +305,8 @@ export default function TableMapPage() {
                   disabled={!selectedTable.activeOrder}
                   className={`py-3 px-3 sm:px-4 rounded-xl font-bold text-xs sm:text-base flex items-center justify-center gap-1.5 sm:gap-2 transition-all ${
                     selectedTable.activeOrder
-                      ? 'bg-orange-500 hover:bg-orange-600 text-white active:scale-[0.99] cursor-pointer'
-                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                      ? "bg-orange-500 hover:bg-orange-600 text-white active:scale-[0.99] cursor-pointer"
+                      : "bg-slate-200 text-slate-400 cursor-not-allowed"
                   }`}
                 >
                   <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
