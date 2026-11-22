@@ -37,6 +37,9 @@ public class Invoice {
     @Column(name = "total_vnd", nullable = false)
     private long totalVnd;
 
+    @Column(name = "cashier_name", length = 120)
+    private String cashierName;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -44,11 +47,16 @@ public class Invoice {
     }
 
     public Invoice(RestaurantOrder order, long subtotalVnd, long discountVnd, long vatVnd, long totalVnd) {
+        this(order, subtotalVnd, discountVnd, vatVnd, totalVnd, null);
+    }
+
+    public Invoice(RestaurantOrder order, long subtotalVnd, long discountVnd, long vatVnd, long totalVnd, String cashierName) {
         this.order = order;
         this.subtotalVnd = subtotalVnd;
         this.discountVnd = discountVnd;
         this.vatVnd = vatVnd;
         this.totalVnd = totalVnd;
+        this.cashierName = cashierName;
     }
 
     public UUID getId() { return id; }
@@ -57,5 +65,6 @@ public class Invoice {
     public long getDiscountVnd() { return discountVnd; }
     public long getVatVnd() { return vatVnd; }
     public long getTotalVnd() { return totalVnd; }
+    public String getCashierName() { return cashierName; }
     public Instant getCreatedAt() { return createdAt; }
 }

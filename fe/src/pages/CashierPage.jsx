@@ -36,6 +36,8 @@ import {
   Ban,
   MessageSquare,
   ShoppingBag,
+  Users,
+  Eye,
 } from "lucide-react";
 import { useRoms } from "../context/RomsContext";
 import { formatCurrency } from "../utils/formatters";
@@ -114,6 +116,7 @@ export default function CashierPage() {
             setProfileData({
               id: res.id,
               username: res.username,
+              fullName: res.fullName || "",
               role: res.role,
               active: res.active !== false,
             });
@@ -126,6 +129,8 @@ export default function CashierPage() {
   const profileUser = useMemo(() => {
     const u = profileData || currentUser || {};
     const username = u.username || "cashier";
+    const fullName = u.fullName || "";
+    const displayName = fullName.trim() ? fullName.trim() : username;
     const role = u.role || "CASHIER";
     let roleTitle = "Thu ngân";
     if (role === "ADMIN") roleTitle = "Quản trị viên";
@@ -135,9 +140,11 @@ export default function CashierPage() {
     return {
       id: u.id || "N/A",
       username,
+      fullName,
+      displayName,
       role,
       roleTitle,
-      avatarInitial: (username[0] || "U").toUpperCase(),
+      avatarInitial: ((displayName[0] || username[0]) || "U").toUpperCase(),
       active: u.active !== false,
     };
   }, [profileData, currentUser]);
@@ -226,6 +233,26 @@ export default function CashierPage() {
     totalRevenueVnd: 0,
   }));
   const [topItemsReport, setTopItemsReport] = useState([]);
+  const [invoicesReport, setInvoicesReport] = useState([]);
+  const [selectedHistoryInvoice, setSelectedHistoryInvoice] = useState(null);
+
+  // ==========================================================================
+  // TAB DÀNH CHO ADMIN: QUẢN LÝ TÀI KHOẢN ('accounts')
+  // ==========================================================================
+  const [accountsList, setAccountsList] = useState([]);
+  const [accountRoleFilter, setAccountRoleFilter] = useState("ALL");
+  const [accountSearchQuery, setAccountSearchQuery] = useState("");
+  const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
+  const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
+  const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
+  const [selectedAccountForAction, setSelectedAccountForAction] = useState(null);
+  const [accountForm, setAccountForm] = useState({
+    username: "",
+    fullName: "",
+    password: "",
+    role: "WAITER",
+    active: true,
+  });
 
   // Settings Modal
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -279,6 +306,7 @@ export default function CashierPage() {
       roundCount: Number(orderDto.roundCount) || 1,
       createdAt: orderDto.createdAt,
       submittedAt: orderDto.submittedAt,
+      createdByName: orderDto.createdByName || "",
       items: (orderDto.items || [])
         .filter((it) => it.status !== "CANCELLED")
         .map((it) => ({
@@ -290,6 +318,9 @@ export default function CashierPage() {
           status: it.status || "PENDING",
           note: it.note || "",
           round: Number(it.round) || 1,
+          orderedByName: it.orderedByName || orderDto.createdByName || "",
+          cookedByName: it.cookedByName || "",
+          servedByName: it.servedByName || "",
           image: resolveDishImage(
             it.name,
             menuImageMap?.get(String(it.menuItemId)),
@@ -451,15 +482,24 @@ export default function CashierPage() {
           setTopItemsReport(
             Array.isArray(summary.topItems) ? summary.topItems : [],
           );
+          if (Array.isArray(summary.invoices)) {
+            setInvoicesReport(summary.invoices);
+          } else {
+            const invList = await apiFetch(
+              `/reports/invoices?date=${dateStr}`,
+            ).catch(() => []);
+            setInvoicesReport(Array.isArray(invList) ? invList : []);
+          }
           return;
         }
 
-        // Fallback gọi lẻ GET /api/v1/reports/revenue & /api/v1/reports/top-items
-        const [rev, top] = await Promise.all([
+        // Fallback gọi lẻ GET /api/v1/reports/revenue, /top-items & /invoices
+        const [rev, top, invList] = await Promise.all([
           apiFetch(`/reports/revenue?date=${dateStr}`).catch(() => null),
           apiFetch(`/reports/top-items?date=${dateStr}&limit=10`).catch(
             () => null,
           ),
+          apiFetch(`/reports/invoices?date=${dateStr}`).catch(() => []),
         ]);
         if (rev) {
           setRevenueReport({
@@ -473,6 +513,9 @@ export default function CashierPage() {
         }
         if (Array.isArray(top)) {
           setTopItemsReport(top);
+        }
+        if (Array.isArray(invList)) {
+          setInvoicesReport(invList);
         }
       } catch {
         // Ignored
@@ -722,14 +765,15 @@ export default function CashierPage() {
         }),
       });
 
-      const invoiceItems = (
-        billPreviewData?.items ||
-        orderItems.filter((it) => it.status === "SERVED")
-      ).map((it) => ({
+      const servedOrderItems = orderItems.filter((it) => it.status === "SERVED");
+      const invoiceItems = servedOrderItems.map((it) => ({
         id: it.id || it.orderItemId,
         name: it.name,
         quantity: it.quantity,
         unitPriceVnd: it.unitPriceVnd,
+        orderedByName: it.orderedByName || selectedTable.order?.createdByName || "",
+        cookedByName: it.cookedByName || "",
+        servedByName: it.servedByName || "",
       }));
 
       const finalAmount = payResult?.amountVnd ?? grandTotal;
@@ -744,7 +788,8 @@ export default function CashierPage() {
           : null,
         orderCode: selectedTable.order?.orderCode || "#0000",
         tableName: selectedTable.name,
-        cashierName: profileUser.username,
+        cashierName: payResult?.cashierName || profileUser.displayName,
+        createdByName: selectedTable.order?.createdByName || "",
         paidAt: payResult?.paidAt
           ? new Date(payResult.paidAt).toLocaleString("vi-VN")
           : new Date().toLocaleString("vi-VN"),
@@ -1368,6 +1413,146 @@ export default function CashierPage() {
     }, 0);
   }, [tables]);
 
+  // ==========================================================================
+  // HÀM QUẢN LÝ TÀI KHOẢN DÀNH CHO ADMIN (GET / POST / PUT / DELETE /api/v1/users)
+  // ==========================================================================
+  const fetchAccounts = useCallback(async () => {
+    if (!apiFetch || !isAdmin) return;
+    try {
+      const list = await apiFetch("/users");
+      if (Array.isArray(list)) {
+        setAccountsList(
+          list.map((u) => ({
+            id: String(u.id),
+            username: u.username,
+            fullName: u.fullName || "",
+            role: u.role,
+            active: u.active !== false,
+          })),
+        );
+      }
+    } catch {
+      // Ignored
+    }
+  }, [apiFetch, isAdmin]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchAccounts();
+    }
+  }, [isAdmin, activeTab, fetchAccounts]);
+
+  const filteredAccounts = useMemo(() => {
+    return accountsList.filter((acc) => {
+      const matchRole =
+        accountRoleFilter === "ALL" || acc.role === accountRoleFilter;
+      const q = accountSearchQuery.trim().toLowerCase();
+      const matchSearch =
+        !q ||
+        acc.username.toLowerCase().includes(q) ||
+        (acc.fullName && acc.fullName.toLowerCase().includes(q));
+      return matchRole && matchSearch;
+    });
+  }, [accountsList, accountRoleFilter, accountSearchQuery]);
+
+  const handleCreateAccount = async () => {
+    const username = accountForm.username.trim();
+    const fullName = accountForm.fullName.trim();
+    const password = accountForm.password;
+    if (!username) {
+      showToast("Vui lòng nhập User ID (Tên đăng nhập).", "error");
+      return;
+    }
+    if (!fullName) {
+      showToast("Vui lòng nhập Họ và tên nhân viên.", "error");
+      return;
+    }
+    if (!password || password.length < 12) {
+      showToast("Mật khẩu phải có ít nhất 12 ký tự.", "error");
+      return;
+    }
+
+    try {
+      await apiFetch("/users", {
+        method: "POST",
+        body: JSON.stringify({
+          username,
+          password,
+          fullName,
+          role: accountForm.role,
+        }),
+      });
+      setIsAddAccountOpen(false);
+      await fetchAccounts();
+      showToast(`Đã tạo tài khoản "${username}" (${fullName})!`, "success");
+    } catch (err) {
+      showToast(err.message || "Không thể tạo tài khoản mới.", "error");
+    }
+  };
+
+  const handleUpdateAccount = async () => {
+    if (!selectedAccountForAction?.id) return;
+    const username = accountForm.username.trim();
+    const fullName = accountForm.fullName.trim();
+    const password = accountForm.password;
+    if (!username) {
+      showToast("Vui lòng nhập User ID (Tên đăng nhập).", "error");
+      return;
+    }
+    if (!fullName) {
+      showToast("Vui lòng nhập Họ và tên nhân viên.", "error");
+      return;
+    }
+    if (password && password.length < 12) {
+      showToast("Mật khẩu mới phải có ít nhất 12 ký tự.", "error");
+      return;
+    }
+
+    try {
+      await apiFetch(`/users/${selectedAccountForAction.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          username,
+          fullName,
+          role: accountForm.role,
+          active: accountForm.active,
+          password: password || null,
+        }),
+      });
+      setIsEditAccountOpen(false);
+      await fetchAccounts();
+      if (String(selectedAccountForAction.id) === String(profileUser.id)) {
+        const me = await apiFetch("/auth/me").catch(() => null);
+        if (me) setProfileData(me);
+      }
+      showToast(`Đã cập nhật tài khoản "${username}"!`, "success");
+    } catch (err) {
+      showToast(err.message || "Không thể cập nhật tài khoản.", "error");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!selectedAccountForAction?.id) return;
+    try {
+      await apiFetch(`/users/${selectedAccountForAction.id}`, {
+        method: "DELETE",
+      });
+      setIsDeleteAccountOpen(false);
+      setSelectedAccountForAction(null);
+      await fetchAccounts();
+      showToast(
+        `Đã xóa tài khoản "${selectedAccountForAction.username}"!`,
+        "info",
+      );
+    } catch (err) {
+      setIsDeleteAccountOpen(false);
+      showToast(
+        err.message || "Không thể xóa tài khoản quản trị viên cuối cùng.",
+        "error",
+      );
+    }
+  };
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#FAF7F2] text-slate-800 font-sans select-none">
       {/* ========================================================= */}
@@ -1484,6 +1669,18 @@ export default function CashierPage() {
                 >
                   <BarChart3 className="w-5 h-5 shrink-0" />
                   <span>Báo cáo Doanh thu</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("accounts")}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${
+                    activeTab === "accounts"
+                      ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25"
+                      : "text-slate-600 hover:text-orange-600 hover:bg-orange-50/70"
+                  }`}
+                >
+                  <Users className="w-5 h-5 shrink-0" />
+                  <span>Quản lý Tài khoản</span>
                 </button>
               </>
             )}
@@ -1800,17 +1997,26 @@ export default function CashierPage() {
                                   <span className="font-bold text-slate-800 line-clamp-1">
                                     {item.name}
                                   </span>
-                                  {item.status && (
-                                    <span
-                                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded inline-block ${
-                                        item.status === "SERVED"
-                                          ? "bg-emerald-50 text-emerald-600"
-                                          : "bg-amber-50 text-amber-600"
-                                      }`}
-                                    >
-                                      {getOrderItemStatusLabel(item.status)}
-                                    </span>
-                                  )}
+                                  <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                                    {item.status && (
+                                      <span
+                                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded inline-block ${
+                                          item.status === "SERVED"
+                                            ? "bg-emerald-50 text-emerald-600"
+                                            : "bg-amber-50 text-amber-600"
+                                        }`}
+                                      >
+                                        {getOrderItemStatusLabel(item.status)}
+                                      </span>
+                                    )}
+                                    {(item.orderedByName || item.cookedByName) && (
+                                      <span className="text-[10px] text-slate-400 font-medium">
+                                        {item.orderedByName ? `Gọi: ${item.orderedByName}` : ""}
+                                        {item.orderedByName && item.cookedByName ? " • " : ""}
+                                        {item.cookedByName ? `Bếp: ${item.cookedByName}` : ""}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                               <span className="col-span-3 text-right pr-6 text-slate-500 font-medium">
@@ -2662,6 +2868,16 @@ export default function CashierPage() {
                                   </p>
                                 )}
 
+                                {(item.orderedByName || item.cookedByName || item.servedByName) && (
+                                  <p className="text-[11px] text-slate-500 font-semibold">
+                                    {item.orderedByName ? `Phục vụ gọi: ${item.orderedByName}` : ""}
+                                    {item.orderedByName && item.cookedByName ? " • " : ""}
+                                    {item.cookedByName ? `Bếp: ${item.cookedByName}` : ""}
+                                    {(item.orderedByName || item.cookedByName) && item.servedByName ? " • " : ""}
+                                    {item.servedByName ? `Bưng món: ${item.servedByName}` : ""}
+                                  </p>
+                                )}
+
                                 <div className="flex items-center gap-2">
                                   <span
                                     className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold ${
@@ -3484,6 +3700,282 @@ export default function CashierPage() {
                   </table>
                 </div>
               </div>
+
+              {/* BẢNG LỊCH SỬ CHI TIẾT CÁC HÓA ĐƠN TRONG NGÀY (RÀ SOÁT CUỐI NGÀY) */}
+              <div className="bg-white rounded-lg p-5 lg:p-6 border border-orange-100/70 shadow-xs space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-md bg-orange-100 text-orange-600 flex items-center justify-center">
+                      <Receipt className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-base text-slate-900">
+                        Lịch sử chi tiết các hóa đơn trong ngày ({invoicesReport.length})
+                      </h3>
+                    </div>
+                  </div>
+                </div>
+
+                {invoicesReport.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 text-sm font-medium">
+                    Chưa có hóa đơn thanh toán nào trong ngày {reportDate}.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs sm:text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-100 text-slate-400 uppercase text-[11px] font-bold">
+                          <th className="py-3 px-3">Mã HĐ</th>
+                          <th className="py-3 px-3">Bàn / Mã đơn</th>
+                          <th className="py-3 px-3">Thời gian</th>
+                          <th className="py-3 px-3">Nhân viên thanh toán</th>
+                          <th className="py-3 px-3 text-right">Tạm tính</th>
+                          <th className="py-3 px-3 text-right">Giảm giá</th>
+                          <th className="py-3 px-3 text-right">VAT (8%)</th>
+                          <th className="py-3 px-3 text-right">Tổng thu</th>
+                          <th className="py-3 px-3 text-center">Chi tiết</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                        {invoicesReport.map((inv) => {
+                          const paidTimeStr = inv.paidAt
+                            ? new Date(inv.paidAt).toLocaleString("vi-VN")
+                            : "";
+                          return (
+                            <tr
+                              key={inv.invoiceId}
+                              className="hover:bg-orange-50/40 transition-colors"
+                            >
+                              <td className="py-3 px-3 font-black text-slate-900">
+                                {inv.invoiceCode}
+                              </td>
+                              <td className="py-3 px-3">
+                                <span className="font-bold text-slate-900">
+                                  {inv.tableName}
+                                </span>{" "}
+                                <span className="text-xs text-slate-400">
+                                  ({inv.orderCode})
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-slate-500">
+                                {paidTimeStr}
+                              </td>
+                              <td className="py-3 px-3">
+                                <span className="px-2 py-0.5 rounded bg-orange-50 text-orange-700 border border-orange-200/60 text-xs font-bold">
+                                  {inv.cashierName || "Thu ngân"}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-right text-slate-600">
+                                {formatCurrency(inv.subtotalVnd)}
+                              </td>
+                              <td className="py-3 px-3 text-right text-rose-600">
+                                {inv.discountVnd > 0
+                                  ? `-${formatCurrency(inv.discountVnd)}`
+                                  : "0 đ"}
+                              </td>
+                              <td className="py-3 px-3 text-right text-slate-600">
+                                {formatCurrency(inv.vatVnd)}
+                              </td>
+                              <td className="py-3 px-3 text-right font-black text-orange-600">
+                                {formatCurrency(inv.totalVnd)}
+                              </td>
+                              <td className="py-3 px-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedHistoryInvoice(inv)}
+                                  className="px-2.5 py-1 rounded-md bg-orange-50 hover:bg-orange-100 text-orange-600 font-bold text-xs inline-flex items-center gap-1 transition-colors cursor-pointer"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>Xem</span>
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ===================================================== */}
+          {/* TAB DÀNH CHO ADMIN: QUẢN LÝ TÀI KHOẢN                 */}
+          {/* ===================================================== */}
+          {isAdmin && activeTab === "accounts" && (
+            <div className="bg-white rounded-lg p-5 lg:p-6 shadow-xs border border-orange-100/80 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-md bg-orange-100 text-orange-600 flex items-center justify-center">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <h2 className="text-lg lg:text-xl font-extrabold text-slate-900">
+                    Quản lý Tài khoản ({accountsList.length})
+                  </h2>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAccountForm({
+                      username: "",
+                      fullName: "",
+                      password: "",
+                      role: "WAITER",
+                      active: true,
+                    });
+                    setIsAddAccountOpen(true);
+                  }}
+                  className="px-4 py-2.5 rounded-md bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-sm flex items-center gap-2 shadow-sm transition-colors cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                  <span>Thêm tài khoản</span>
+                </button>
+              </div>
+
+              {/* Thanh tìm kiếm & Lọc theo Role */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="relative w-full sm:w-64 shrink-0">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={accountSearchQuery}
+                    onChange={(e) => setAccountSearchQuery(e.target.value)}
+                    aria-label="Tìm kiếm tài khoản"
+                    className="w-full pl-9 pr-3 py-1.5 rounded-md border border-slate-200 text-xs sm:text-sm font-medium outline-none focus:border-orange-500 bg-white"
+                  />
+                </div>
+
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none flex-1 min-w-0">
+                  {[
+                    { key: "ALL", label: `Tất cả (${accountsList.length})` },
+                    {
+                      key: "ADMIN",
+                      label: `Quản trị (${accountsList.filter((a) => a.role === "ADMIN").length})`,
+                    },
+                    {
+                      key: "CASHIER",
+                      label: `Thu ngân (${accountsList.filter((a) => a.role === "CASHIER").length})`,
+                    },
+                    {
+                      key: "WAITER",
+                      label: `Phục vụ (${accountsList.filter((a) => a.role === "WAITER").length})`,
+                    },
+                    {
+                      key: "KITCHEN",
+                      label: `Nhà bếp (${accountsList.filter((a) => a.role === "KITCHEN").length})`,
+                    },
+                  ].map((r) => (
+                    <button
+                      key={r.key}
+                      type="button"
+                      onClick={() => setAccountRoleFilter(r.key)}
+                      className={`px-3 py-1 rounded-md text-xs sm:text-sm font-bold border whitespace-nowrap cursor-pointer shrink-0 transition-colors ${
+                        accountRoleFilter === r.key
+                          ? "border-orange-500 bg-orange-500 text-white shadow-xs"
+                          : "border-slate-200 bg-white text-slate-700 hover:bg-orange-50 hover:text-orange-600"
+                      }`}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Bảng danh sách tài khoản */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs sm:text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-slate-400 uppercase text-[11px] font-bold">
+                      <th className="py-3 px-3">User ID (Tên đăng nhập)</th>
+                      <th className="py-3 px-3">Họ và tên</th>
+                      <th className="py-3 px-3">Vai trò (Role)</th>
+                      <th className="py-3 px-3">Trạng thái</th>
+                      <th className="py-3 px-3 text-right">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                    {filteredAccounts.map((acc) => {
+                      const roleLabel =
+                        acc.role === "ADMIN"
+                          ? "Quản trị viên (ADMIN)"
+                          : acc.role === "CASHIER"
+                            ? "Thu ngân (CASHIER)"
+                            : acc.role === "KITCHEN"
+                              ? "Nhà bếp (KITCHEN)"
+                              : "Phục vụ (WAITER)";
+                      return (
+                        <tr
+                          key={acc.id}
+                          className="hover:bg-orange-50/40 transition-colors"
+                        >
+                          <td className="py-3 px-3 font-extrabold text-slate-900">
+                            {acc.username}
+                          </td>
+                          <td className="py-3 px-3 font-bold text-slate-800">
+                            {acc.fullName || acc.username}
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="px-2.5 py-1 rounded-md bg-orange-50 text-orange-700 border border-orange-200/70 text-xs font-bold">
+                              {roleLabel}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold ${
+                                acc.active
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
+                                  : "bg-rose-50 text-rose-700 border border-rose-200/60"
+                              }`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  acc.active ? "bg-emerald-500" : "bg-rose-500"
+                                }`}
+                              />
+                              {acc.active ? "Hoạt động" : "Đã khóa"}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-right">
+                            <div className="inline-flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedAccountForAction(acc);
+                                  setAccountForm({
+                                    username: acc.username,
+                                    fullName: acc.fullName || "",
+                                    password: "",
+                                    role: acc.role,
+                                    active: acc.active,
+                                  });
+                                  setIsEditAccountOpen(true);
+                                }}
+                                className="px-3 py-1.5 rounded-md bg-orange-100/80 hover:bg-orange-200/80 text-orange-700 font-bold text-xs inline-flex items-center gap-1 transition-colors cursor-pointer"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                                <span>Sửa</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedAccountForAction(acc);
+                                  setIsDeleteAccountOpen(true);
+                                }}
+                                className="px-3 py-1.5 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs inline-flex items-center gap-1 transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Xóa</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
@@ -3509,7 +4001,7 @@ export default function CashierPage() {
                 <div className="flex-1 text-center sm:text-left space-y-1.5">
                   <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
                     <h2 className="text-xl lg:text-2xl font-black text-slate-900">
-                      {profileUser.username}
+                      {profileUser.displayName}
                     </h2>
                     <span className="px-2.5 py-0.5 rounded-md bg-orange-100 text-orange-700 font-extrabold text-xs">
                       {profileUser.role}
@@ -3528,11 +4020,22 @@ export default function CashierPage() {
                 </h3>
 
                 <div className="divide-y divide-slate-100 text-sm">
+                  {/* Họ và tên */}
+                  <div className="py-3 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 text-slate-600 font-medium">
+                      <User className="w-4 h-4 text-slate-400" />
+                      <span>Họ và tên</span>
+                    </div>
+                    <span className="font-bold text-slate-900">
+                      {profileUser.displayName}
+                    </span>
+                  </div>
+
                   {/* Tên đăng nhập */}
                   <div className="py-3 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3 text-slate-600 font-medium">
                       <User className="w-4 h-4 text-slate-400" />
-                      <span>Tên đăng nhập</span>
+                      <span>User ID (Tên đăng nhập)</span>
                     </div>
                     <span className="font-bold text-slate-900">
                       {profileUser.username}
@@ -3794,8 +4297,8 @@ export default function CashierPage() {
                 {lastPaidInvoice.paidAt}
               </p>
               <p className="text-xs text-slate-400">
-                Bàn: <strong>{lastPaidInvoice.tableName}</strong> Thu ngân:{" "}
-                {lastPaidInvoice.cashierName}
+                Bàn: <strong>{lastPaidInvoice.tableName}</strong> • Nhân viên thanh toán:{" "}
+                <strong className="text-slate-700">{lastPaidInvoice.cashierName}</strong>
               </p>
             </div>
 
@@ -3857,6 +4360,10 @@ export default function CashierPage() {
                 </span>
               </div>
               <div className="flex justify-between text-slate-500 pt-1 text-[11px]">
+                <span>Nhân viên thanh toán:</span>
+                <span className="font-bold text-slate-800">{lastPaidInvoice.cashierName}</span>
+              </div>
+              <div className="flex justify-between text-slate-500 text-[11px]">
                 <span>Phương thức:</span>
                 <span className="font-normal text-slate-700">Tiền mặt</span>
               </div>
@@ -4446,6 +4953,415 @@ export default function CashierPage() {
                 className="w-full py-2.5 px-4 rounded-md bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-sm transition-colors cursor-pointer"
               >
                 Lưu cấu hình
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 13: CHI TIẾT HÓA ĐƠN TRONG LỊCH SỬ DOANH THU        */}
+      {/* ========================================================= */}
+      {selectedHistoryInvoice && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-lg p-6 w-full max-w-xl shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <span className="px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider mb-1 inline-block">
+                  Chi tiết hóa đơn đã thanh toán
+                </span>
+                <h3 className="font-black text-lg text-slate-900">
+                  Hóa đơn {selectedHistoryInvoice.invoiceCode} ({selectedHistoryInvoice.tableName})
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedHistoryInvoice(null)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 p-3.5 rounded-md bg-slate-50 border border-slate-100 text-xs">
+              <div>
+                <span className="text-slate-400 font-semibold block">Mã đơn hàng:</span>
+                <strong className="text-slate-800 font-extrabold">
+                  {selectedHistoryInvoice.orderCode}
+                </strong>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold block">Thời gian thanh toán:</span>
+                <strong className="text-slate-800 font-extrabold">
+                  {selectedHistoryInvoice.paidAt
+                    ? new Date(selectedHistoryInvoice.paidAt).toLocaleString("vi-VN")
+                    : ""}
+                </strong>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold block">Nhân viên thanh toán:</span>
+                <strong className="text-orange-600 font-extrabold">
+                  {selectedHistoryInvoice.cashierName || "Thu ngân"}
+                </strong>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold block">Nhân viên mở đơn:</span>
+                <strong className="text-slate-800 font-extrabold">
+                  {selectedHistoryInvoice.createdByName || "Phục vụ"}
+                </strong>
+              </div>
+            </div>
+
+            <div className="max-h-60 overflow-y-auto border border-slate-100 rounded-md">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold">
+                  <tr>
+                    <th className="py-2.5 px-3">Món ăn</th>
+                    <th className="py-2.5 px-3">Truy vết (Gọi / Bếp)</th>
+                    <th className="py-2.5 px-3 text-right">Đơn giá</th>
+                    <th className="py-2.5 px-3 text-center">SL</th>
+                    <th className="py-2.5 px-3 text-right">Thành tiền</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                  {(selectedHistoryInvoice.items || []).map((it, idx) => (
+                    <tr key={it.orderItemId || idx}>
+                      <td className="py-2.5 px-3 font-bold text-slate-900">
+                        {it.name}{" "}
+                        <span className="text-[10px] text-slate-400 font-semibold">
+                          (Lượt {it.round || 1})
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-[11px] text-slate-500">
+                        <div>Gọi: <strong className="text-slate-700">{it.orderedByName || selectedHistoryInvoice.createdByName || "N/A"}</strong></div>
+                        {it.cookedByName && (
+                          <div>Bếp: <strong className="text-slate-700">{it.cookedByName}</strong></div>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        {formatCurrency(it.unitPriceVnd)}
+                      </td>
+                      <td className="py-2.5 px-3 text-center font-bold">
+                        {it.quantity}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-black text-slate-900">
+                        {formatCurrency(it.lineTotalVnd ?? it.unitPriceVnd * it.quantity)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="border-t border-dashed border-slate-200 pt-3 space-y-1 text-xs font-semibold">
+              <div className="flex justify-between text-slate-500">
+                <span>Tạm tính:</span>
+                <span className="font-bold text-slate-800">
+                  {formatCurrency(selectedHistoryInvoice.subtotalVnd)}
+                </span>
+              </div>
+              {selectedHistoryInvoice.discountVnd > 0 && (
+                <div className="flex justify-between text-rose-600">
+                  <span>Giảm giá:</span>
+                  <span className="font-bold">
+                    -{formatCurrency(selectedHistoryInvoice.discountVnd)}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between text-slate-500">
+                <span>Thuế VAT (8%):</span>
+                <span className="font-bold text-slate-800">
+                  {formatCurrency(selectedHistoryInvoice.vatVnd)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-sm font-black text-slate-900 pt-1.5 border-t border-slate-200">
+                <span>Tổng thanh toán:</span>
+                <span className="text-base text-orange-600 font-extrabold">
+                  {formatCurrency(selectedHistoryInvoice.totalVnd)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex-1 py-2.5 px-4 rounded-md bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-sm flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>In lại hóa đơn</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedHistoryInvoice(null)}
+                className="py-2.5 px-4 rounded-md border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold text-sm transition-colors cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 14: THÊM TÀI KHOẢN MỚI (POST /api/v1/users)         */}
+      {/* ========================================================= */}
+      {isAddAccountOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                <Users className="w-5 h-5 text-orange-500" />
+                <span>Thêm tài khoản mới</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsAddAccountOpen(false)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  User ID (Tên đăng nhập)
+                </label>
+                <input
+                  type="text"
+                  value={accountForm.username}
+                  onChange={(e) =>
+                    setAccountForm({ ...accountForm, username: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Họ và tên
+                </label>
+                <input
+                  type="text"
+                  value={accountForm.fullName}
+                  onChange={(e) =>
+                    setAccountForm({ ...accountForm, fullName: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Mật khẩu (tối thiểu 12 ký tự)
+                </label>
+                <input
+                  type="password"
+                  value={accountForm.password}
+                  onChange={(e) =>
+                    setAccountForm({ ...accountForm, password: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Vai trò (Role)
+                </label>
+                <select
+                  value={accountForm.role}
+                  onChange={(e) =>
+                    setAccountForm({ ...accountForm, role: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500 cursor-pointer"
+                >
+                  <option value="WAITER">Phục vụ (WAITER)</option>
+                  <option value="KITCHEN">Nhà bếp (KITCHEN)</option>
+                  <option value="CASHIER">Thu ngân (CASHIER)</option>
+                  <option value="ADMIN">Quản trị viên (ADMIN)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleCreateAccount}
+                className="flex-1 py-2.5 px-4 rounded-md bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-sm flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Tạo tài khoản</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsAddAccountOpen(false)}
+                className="py-2.5 px-4 rounded-md border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold text-sm transition-colors cursor-pointer"
+              >
+                Hủy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 15: SỬA TÀI KHOẢN (PUT /api/v1/users/{id})          */}
+      {/* ========================================================= */}
+      {isEditAccountOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                <Edit className="w-5 h-5 text-orange-500" />
+                <span>Sửa thông tin tài khoản</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsEditAccountOpen(false)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  User ID (Tên đăng nhập)
+                </label>
+                <input
+                  type="text"
+                  value={accountForm.username}
+                  onChange={(e) =>
+                    setAccountForm({ ...accountForm, username: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Họ và tên
+                </label>
+                <input
+                  type="text"
+                  value={accountForm.fullName}
+                  onChange={(e) =>
+                    setAccountForm({ ...accountForm, fullName: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Vai trò (Role)
+                </label>
+                <select
+                  value={accountForm.role}
+                  onChange={(e) =>
+                    setAccountForm({ ...accountForm, role: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500 cursor-pointer"
+                >
+                  <option value="WAITER">Phục vụ (WAITER)</option>
+                  <option value="KITCHEN">Nhà bếp (KITCHEN)</option>
+                  <option value="CASHIER">Thu ngân (CASHIER)</option>
+                  <option value="ADMIN">Quản trị viên (ADMIN)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Trạng thái tài khoản
+                </label>
+                <select
+                  value={accountForm.active ? "true" : "false"}
+                  onChange={(e) =>
+                    setAccountForm({
+                      ...accountForm,
+                      active: e.target.value === "true",
+                    })
+                  }
+                  className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500 cursor-pointer"
+                >
+                  <option value="true">Đang hoạt động</option>
+                  <option value="false">Khóa tài khoản</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Đặt lại mật khẩu mới (Để trống nếu giữ nguyên)
+                </label>
+                <input
+                  type="password"
+                  value={accountForm.password}
+                  onChange={(e) =>
+                    setAccountForm({ ...accountForm, password: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleUpdateAccount}
+                className="flex-1 py-2.5 px-4 rounded-md bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-sm flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Lưu thay đổi</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEditAccountOpen(false)}
+                className="py-2.5 px-4 rounded-md border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold text-sm transition-colors cursor-pointer"
+              >
+                Hủy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 16: XÁC NHẬN XÓA TÀI KHOẢN (DELETE /api/v1/users/{id}) */}
+      {/* ========================================================= */}
+      {isDeleteAccountOpen && selectedAccountForAction && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-lg p-6 w-full max-w-sm shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <AlertCircle className="w-6 h-6" />
+              <h3 className="font-extrabold text-base text-slate-900">
+                Xóa tài khoản {selectedAccountForAction.username}?
+              </h3>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Bạn có chắc chắn muốn xóa tài khoản{" "}
+              <strong>
+                {selectedAccountForAction.fullName ||
+                  selectedAccountForAction.username}
+              </strong>{" "}
+              ({selectedAccountForAction.username}) khỏi hệ thống?
+            </p>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                className="flex-1 py-2.5 px-4 rounded-md bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-sm transition-colors cursor-pointer"
+              >
+                Xóa ngay
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsDeleteAccountOpen(false)}
+                className="py-2.5 px-4 rounded-md border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold text-sm transition-colors cursor-pointer"
+              >
+                Hủy
               </button>
             </div>
           </div>

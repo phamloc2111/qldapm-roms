@@ -235,6 +235,15 @@ export default function OrderTrackingPage() {
                           </p>
                         )}
 
+                        {/* Truy vết người gọi món & bếp chế biến */}
+                        {(item.orderedByName || item.cookedByName) && (
+                          <p className="text-xs text-slate-500 font-medium">
+                            {item.orderedByName ? `Phục vụ gọi: ${item.orderedByName}` : ""}
+                            {item.orderedByName && item.cookedByName ? " • " : ""}
+                            {item.cookedByName ? `Bếp nấu: ${item.cookedByName}` : ""}
+                          </p>
+                        )}
+
                         {/* Hàng 4: Trạng thái */}
                         <div className="pt-0.5">
                           <DishStatusBadge status={item.status} />

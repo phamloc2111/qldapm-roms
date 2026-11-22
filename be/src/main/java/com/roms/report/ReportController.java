@@ -37,4 +37,10 @@ public class ReportController {
             @RequestParam(defaultValue = "10") int limit) {
         return reportService.getDailySummary(date, limit);
     }
+
+    @GetMapping("/invoices")
+    public List<ReportService.InvoiceHistoryItem> getInvoices(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return reportService.getInvoices(date);
+    }
 }

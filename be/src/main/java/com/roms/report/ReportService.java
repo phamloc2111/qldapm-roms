@@ -74,7 +74,54 @@ public class ReportService {
     public DailySummaryReport getDailySummary(LocalDate date, int limit) {
         DailyRevenueReport revenue = getRevenue(date);
         List<TopItemReport> topItems = getTopItems(date, limit);
-        return new DailySummaryReport(revenue, topItems);
+        List<InvoiceHistoryItem> invoices = getInvoices(date);
+        return new DailySummaryReport(revenue, topItems, invoices);
+    }
+
+    public List<InvoiceHistoryItem> getInvoices(LocalDate date) {
+        LocalDate targetDate = date != null ? date : LocalDate.now(REPORT_ZONE);
+        Instant start = targetDate.atStartOfDay(REPORT_ZONE).toInstant();
+        Instant end = targetDate.plusDays(1).atStartOfDay(REPORT_ZONE).toInstant();
+
+        List<Invoice> invoices = invoiceRepository.findAllByCreatedAtBetween(start, end);
+        return invoices.stream()
+                .sorted(Comparator.comparing(Invoice::getCreatedAt).reversed())
+                .map(inv -> {
+                    var order = inv.getOrder();
+                    String invCode = "HD-" + inv.getId().toString().replace("-", "").substring(0, 8).toUpperCase();
+                    String ordCode = "#" + order.getId().toString().replace("-", "").substring(0, 4).toUpperCase();
+                    String tableName = order.getTable() != null ? order.getTable().getName() : "Bàn";
+                    List<InvoiceLineReport> lines = order.getItems().stream()
+                            .filter(it -> it.getStatus() == OrderItemStatus.SERVED)
+                            .map(it -> new InvoiceLineReport(
+                                    it.getId(),
+                                    it.getItemName(),
+                                    it.getQuantity(),
+                                    it.getUnitPriceVnd(),
+                                    it.getUnitPriceVnd() * it.getQuantity(),
+                                    it.getRoundNumber(),
+                                    it.getOrderedByName(),
+                                    it.getCookedByName(),
+                                    it.getServedByName()
+                            ))
+                            .toList();
+                    return new InvoiceHistoryItem(
+                            inv.getId(),
+                            invCode,
+                            order.getId(),
+                            ordCode,
+                            tableName,
+                            inv.getCreatedAt(),
+                            inv.getCashierName() != null ? inv.getCashierName() : "Thu ngân",
+                            order.getCreatedByName(),
+                            inv.getSubtotalVnd(),
+                            inv.getDiscountVnd(),
+                            inv.getVatVnd(),
+                            inv.getTotalVnd(),
+                            lines
+                    );
+                })
+                .toList();
     }
 
     private static class ItemAggregation {
@@ -115,6 +162,35 @@ public class ReportService {
 
     public record DailySummaryReport(
             DailyRevenueReport revenue,
-            List<TopItemReport> topItems
+            List<TopItemReport> topItems,
+            List<InvoiceHistoryItem> invoices
+    ) { }
+
+    public record InvoiceHistoryItem(
+            UUID invoiceId,
+            String invoiceCode,
+            UUID orderId,
+            String orderCode,
+            String tableName,
+            Instant paidAt,
+            String cashierName,
+            String createdByName,
+            long subtotalVnd,
+            long discountVnd,
+            long vatVnd,
+            long totalVnd,
+            List<InvoiceLineReport> items
+    ) { }
+
+    public record InvoiceLineReport(
+            UUID orderItemId,
+            String name,
+            int quantity,
+            long unitPriceVnd,
+            long lineTotalVnd,
+            int round,
+            String orderedByName,
+            String cookedByName,
+            String servedByName
     ) { }
 }

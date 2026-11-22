@@ -30,7 +30,7 @@ export default function ProfilePage() {
         </div>
         <div>
           <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900">
-            {user.username}
+            {user.fullName || user.username}
           </h2>
           <p className="text-sm sm:text-base font-bold text-orange-600 mt-0.5">
             {user.roleDisplay}
@@ -42,7 +42,17 @@ export default function ProfilePage() {
         <div className="py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 text-slate-600 text-sm font-medium">
             <User className="w-4 h-4 text-slate-400" />
-            <span>Tên đăng nhập</span>
+            <span>Họ và tên</span>
+          </div>
+          <span className="text-sm font-bold text-slate-900">
+            {user.fullName || user.username}
+          </span>
+        </div>
+
+        <div className="py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 text-slate-600 text-sm font-medium">
+            <User className="w-4 h-4 text-slate-400" />
+            <span>Tên đăng nhập (User ID)</span>
           </div>
           <span className="text-sm font-bold text-slate-900">
             {user.username}

@@ -327,9 +327,18 @@ export default function KitchenPage() {
                               className="w-12 h-12 sm:w-14 sm:h-14 object-cover shrink-0 bg-slate-100"
                             />
 
-                            <span className="text-sm sm:text-base font-extrabold text-slate-900 leading-snug">
-                              {item.name}
-                            </span>
+                            <div className="min-w-0">
+                              <span className="text-sm sm:text-base font-extrabold text-slate-900 leading-snug block">
+                                {item.name}
+                              </span>
+                              {(item.orderedByName || item.cookedByName) && (
+                                <span className="text-[11px] font-semibold text-slate-500 block mt-0.5">
+                                  {item.orderedByName ? `Gọi món: ${item.orderedByName}` : ''}
+                                  {item.orderedByName && item.cookedByName ? ' • ' : ''}
+                                  {item.cookedByName ? `Bếp: ${item.cookedByName}` : ''}
+                                </span>
+                              )}
+                            </div>
                           </div>
 
                           <div className="flex items-center gap-2 shrink-0">

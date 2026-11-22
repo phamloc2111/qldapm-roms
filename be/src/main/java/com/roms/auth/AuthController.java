@@ -48,7 +48,7 @@ public class AuthController {
         }
         AppUser user = users.findByUsername(authentication.getName().toLowerCase(Locale.ROOT))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
-        return new AccountService.UserView(user.getId(), user.getUsername(), user.getRole(), user.isActive());
+        return AccountService.UserView.from(user);
     }
 
     @GetMapping("/users")
@@ -57,12 +57,18 @@ public class AuthController {
     @PostMapping("/users")
     @ResponseStatus(HttpStatus.CREATED)
     public AccountService.UserView create(@Valid @RequestBody CreateUser request) {
-        return accounts.create(request.username(), request.password(), request.role());
+        return accounts.create(request.username(), request.password(), request.role(), request.fullName());
     }
 
     @PutMapping("/users/{id}")
     public AccountService.UserView update(@PathVariable UUID id, @Valid @RequestBody UpdateUser request) {
-        return accounts.update(id, request.username(), request.role(), request.active());
+        return accounts.update(id, request.username(), request.role(), request.active(), request.fullName(), request.password());
+    }
+
+    @DeleteMapping("/users/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable UUID id) {
+        accounts.delete(id);
     }
 
     @PostMapping("/users/{id}/reset-password")
@@ -73,7 +79,15 @@ public class AuthController {
 
     public record LoginRequest(@NotBlank @Size(max = 64) String username, @NotBlank @Size(max = 72) String password) { }
     public record TokenResponse(String accessToken, String tokenType, long expiresIn) { }
-    public record CreateUser(String username, String password, Role role) { }
-    public record UpdateUser(String username, Role role, Boolean active) { }
+    public record CreateUser(String username, String password, Role role, String fullName) {
+        public CreateUser(String username, String password, Role role) {
+            this(username, password, role, null);
+        }
+    }
+    public record UpdateUser(String username, Role role, Boolean active, String fullName, String password) {
+        public UpdateUser(String username, Role role, Boolean active) {
+            this(username, role, active, null, null);
+        }
+    }
     public record PasswordRequest(String password) { }
 }

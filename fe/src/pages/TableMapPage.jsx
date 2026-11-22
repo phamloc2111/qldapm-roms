@@ -184,11 +184,10 @@ export default function TableMapPage() {
                   : TABLE_STATUS.AVAILABLE,
               )
             }
-            className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${
-              statusFilter !== "ALL" && statusFilter !== TABLE_STATUS.AVAILABLE
+            className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${statusFilter !== "ALL" && statusFilter !== TABLE_STATUS.AVAILABLE
                 ? "opacity-40"
                 : ""
-            }`}
+              }`}
           >
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
             <span>Bàn trống</span>
@@ -202,11 +201,10 @@ export default function TableMapPage() {
                   : TABLE_STATUS.OCCUPIED,
               )
             }
-            className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${
-              statusFilter !== "ALL" && statusFilter !== TABLE_STATUS.OCCUPIED
+            className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${statusFilter !== "ALL" && statusFilter !== TABLE_STATUS.OCCUPIED
                 ? "opacity-40"
                 : ""
-            }`}
+              }`}
           >
             <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
             <span>Đang có khách</span>
@@ -220,12 +218,11 @@ export default function TableMapPage() {
                   : TABLE_STATUS.READY_TO_SERVE,
               )
             }
-            className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${
-              statusFilter !== "ALL" &&
-              statusFilter !== TABLE_STATUS.READY_TO_SERVE
+            className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${statusFilter !== "ALL" &&
+                statusFilter !== TABLE_STATUS.READY_TO_SERVE
                 ? "opacity-40"
                 : ""
-            }`}
+              }`}
           >
             <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
             <span>Chờ mang món</span>
@@ -307,12 +304,11 @@ export default function TableMapPage() {
                       navigate("/tracking");
                     }
                   }}
-                  className={`flex items-center gap-3 min-w-0 flex-1 ${
-                    selectedTable.activeOrder &&
-                    !selectedTable.orderSummary?.isCompleted
+                  className={`flex items-center gap-3 min-w-0 flex-1 ${selectedTable.activeOrder &&
+                      !selectedTable.orderSummary?.isCompleted
                       ? "cursor-pointer hover:opacity-85 transition-opacity"
                       : ""
-                  }`}
+                    }`}
                 >
                   <div className="w-10 h-10 sm:w-11 sm:h-11 text-orange-600 flex items-center justify-center shrink-0">
                     <RestaurantTableSvg className="w-6 h-6 sm:w-7 sm:h-7" />
@@ -359,11 +355,10 @@ export default function TableMapPage() {
                       className="flex items-center justify-between gap-2 py-2 hover:bg-slate-50 transition-colors text-xs sm:text-sm"
                     >
                       <span
-                        className={`font-semibold truncate ${
-                          item.status === "CANCELLED"
+                        className={`font-semibold truncate ${item.status === "CANCELLED"
                             ? "line-through text-slate-400"
                             : "text-slate-800"
-                        }`}
+                          }`}
                       >
                         {item.name} × {item.quantity}
                       </span>
@@ -395,11 +390,10 @@ export default function TableMapPage() {
                     navigate(`/payment/${selectedTable.id}`);
                   }}
                   disabled={!selectedTable.activeOrder}
-                  className={`py-3 px-3 sm:px-4 rounded-xl font-bold text-xs sm:text-base flex items-center justify-center gap-1.5 sm:gap-2 transition-all ${
-                    selectedTable.activeOrder
+                  className={`py-3 px-3 sm:px-4 rounded-xl font-bold text-xs sm:text-base flex items-center justify-center gap-1.5 sm:gap-2 transition-all ${selectedTable.activeOrder
                       ? "bg-orange-500 hover:bg-orange-600 text-white active:scale-[0.99] cursor-pointer"
                       : "bg-slate-200 text-slate-400 cursor-not-allowed"
-                  }`}
+                    }`}
                 >
                   <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
                   <span>Thanh toán</span>

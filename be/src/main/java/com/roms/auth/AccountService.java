@@ -7,6 +7,8 @@ import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,7 +36,7 @@ public class AccountService {
             if (username.isBlank()) {
                 throw new IllegalStateException("No active admin; configure bootstrap credentials");
             }
-            createInternal(username, password, Role.ADMIN);
+            createInternal(username, password, Role.ADMIN, "Quản trị viên");
         }
     }
 
@@ -43,19 +45,36 @@ public class AccountService {
         return users.findAll().stream().map(UserView::from).toList();
     }
 
-    @Transactional
-    public UserView create(String username, String password, Role role) {
-        lockGuard();
-        return UserView.from(createInternal(username, password, role));
+    @Transactional(readOnly = true)
+    public String getCurrentActorDisplayName() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getName() == null || auth.getName().isBlank()) {
+            return "Hệ thống";
+        }
+        String username = auth.getName().toLowerCase(Locale.ROOT);
+        return users.findByUsername(username)
+                .map(AppUser::getDisplayName)
+                .orElse(auth.getName());
     }
 
-    private AppUser createInternal(String username, String password, Role role) {
+    @Transactional
+    public UserView create(String username, String password, Role role) {
+        return create(username, password, role, null);
+    }
+
+    @Transactional
+    public UserView create(String username, String password, Role role, String fullName) {
+        lockGuard();
+        return UserView.from(createInternal(username, password, role, fullName));
+    }
+
+    private AppUser createInternal(String username, String password, Role role, String fullName) {
         String normalized = normalize(username);
         validatePassword(password);
         if (role == null) throw badRequest("Role is required");
         if (users.existsByUsername(normalized)) throw conflict("Username already exists");
         try {
-            return users.saveAndFlush(new AppUser(normalized, passwords.encode(password), role));
+            return users.saveAndFlush(new AppUser(normalized, passwords.encode(password), role, fullName));
         } catch (DataIntegrityViolationException ex) {
             throw conflict("Username already exists");
         }
@@ -63,6 +82,11 @@ public class AccountService {
 
     @Transactional
     public UserView update(UUID id, String username, Role role, Boolean active) {
+        return update(id, username, role, active, null, null);
+    }
+
+    @Transactional
+    public UserView update(UUID id, String username, Role role, Boolean active, String fullName, String password) {
         lockGuard();
         AppUser user = find(id);
         String normalized = normalize(username);
@@ -74,13 +98,29 @@ public class AccountService {
         if (!user.getUsername().equals(normalized) && users.existsByUsername(normalized)) {
             throw conflict("Username already exists");
         }
-        user.update(normalized, role, active);
+        user.update(normalized, role, active, fullName);
+        if (password != null && !password.isBlank()) {
+            validatePassword(password);
+            user.resetPassword(passwords.encode(password));
+        }
         try {
             users.flush();
         } catch (DataIntegrityViolationException ex) {
             throw conflict("Username already exists");
         }
         return UserView.from(user);
+    }
+
+    @Transactional
+    public void delete(UUID id) {
+        lockGuard();
+        AppUser user = find(id);
+        if (user.getRole() == Role.ADMIN && user.isActive()
+                && users.countByRoleAndActiveTrue(Role.ADMIN) <= 1) {
+            throw conflict("Cannot remove the last active admin");
+        }
+        users.delete(user);
+        users.flush();
     }
 
     @Transactional
@@ -119,9 +159,12 @@ public class AccountService {
         return new ResponseStatusException(HttpStatus.CONFLICT, message);
     }
 
-    public record UserView(UUID id, String username, Role role, boolean active) {
+    public record UserView(UUID id, String username, String fullName, Role role, boolean active) {
+        public UserView(UUID id, String username, Role role, boolean active) {
+            this(id, username, null, role, active);
+        }
         static UserView from(AppUser user) {
-            return new UserView(user.getId(), user.getUsername(), user.getRole(), user.isActive());
+            return new UserView(user.getId(), user.getUsername(), user.getFullName(), user.getRole(), user.isActive());
         }
     }
 }
