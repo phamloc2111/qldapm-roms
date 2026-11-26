@@ -1,5 +1,6 @@
 package com.roms.order;
 
+import com.roms.auth.AccountService;
 import com.roms.menu.MenuItem;
 import com.roms.menu.MenuItemRepository;
 import com.roms.realtime.RealtimeEventService;
@@ -27,15 +28,17 @@ public class OrderService {
     private final TableRepository tableRepository;
     private final MenuItemRepository menuItemRepository;
     private final RealtimeEventService realtimeEventService;
+    private final AccountService accountService;
 
     public OrderService(OrderRepository orderRepository, OrderItemRepository orderItemRepository,
                         TableRepository tableRepository, MenuItemRepository menuItemRepository,
-                        RealtimeEventService realtimeEventService) {
+                        RealtimeEventService realtimeEventService, AccountService accountService) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.tableRepository = tableRepository;
         this.menuItemRepository = menuItemRepository;
         this.realtimeEventService = realtimeEventService;
+        this.accountService = accountService;
     }
 
     public OrderResponse createAndSubmit(UUID tableId, List<CreateOrderItem> requestedItems) {
@@ -47,7 +50,9 @@ public class OrderService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Bàn đang có order chưa thanh toán");
         }
 
+        String actorName = accountService.getCurrentActorDisplayName();
         RestaurantOrder order = new RestaurantOrder(table);
+        order.setCreatedByName(actorName);
         for (CreateOrderItem requestedItem : requestedItems) {
             MenuItem menuItem = menuItemRepository.findById(requestedItem.menuItemId())
                     .filter(item -> item.isActive() && item.getCategory().isActive())
@@ -56,7 +61,7 @@ public class OrderService {
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
                         "Món " + menuItem.getName() + " hiện đã hết hàng");
             }
-            order.addItem(new OrderItem(menuItem, requestedItem.quantity(), requestedItem.note(), 1));
+            order.addItem(new OrderItem(menuItem, requestedItem.quantity(), requestedItem.note(), 1, actorName));
         }
 
         order.submit();
@@ -75,6 +80,7 @@ public class OrderService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Không thể thêm món vào order đã thanh toán hoặc đã đóng");
         }
 
+        String actorName = accountService.getCurrentActorDisplayName();
         int currentRound = order.nextRound();
         for (CreateOrderItem requestedItem : requestedItems) {
             MenuItem menuItem = menuItemRepository.findById(requestedItem.menuItemId())
@@ -84,7 +90,7 @@ public class OrderService {
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
                         "Món " + menuItem.getName() + " hiện đã hết hàng");
             }
-            order.addItem(new OrderItem(menuItem, requestedItem.quantity(), requestedItem.note(), currentRound));
+            order.addItem(new OrderItem(menuItem, requestedItem.quantity(), requestedItem.note(), currentRound, actorName));
         }
 
         order.refreshStatus();
@@ -172,7 +178,7 @@ public class OrderService {
         if (item.getStatus() != OrderItemStatus.PENDING) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Chỉ món đang chờ mới có thể bắt đầu chế biến");
         }
-        item.startCooking();
+        item.startCooking(accountService.getCurrentActorDisplayName());
         return updateOrderAfterItemChange(item);
     }
 
@@ -181,7 +187,7 @@ public class OrderService {
         if (item.getStatus() != OrderItemStatus.COOKING) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Chỉ món đang nấu mới có thể hoàn thành");
         }
-        item.complete();
+        item.complete(accountService.getCurrentActorDisplayName());
         return updateOrderAfterItemChange(item);
     }
 
@@ -190,7 +196,7 @@ public class OrderService {
         if (item.getStatus() != OrderItemStatus.DONE) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Chỉ món đã xong mới có thể phục vụ");
         }
-        item.serve();
+        item.serve(accountService.getCurrentActorDisplayName());
         return updateOrderAfterItemChange(item);
     }
 

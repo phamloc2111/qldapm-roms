@@ -53,20 +53,34 @@ public class OrderItem {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
+    @Column(name = "ordered_by_name", length = 120)
+    private String orderedByName;
+
+    @Column(name = "cooked_by_name", length = 120)
+    private String cookedByName;
+
+    @Column(name = "served_by_name", length = 120)
+    private String servedByName;
+
     protected OrderItem() {
     }
 
     public OrderItem(MenuItem menuItem, int quantity, String note) {
-        this(menuItem, quantity, note, 1);
+        this(menuItem, quantity, note, 1, null);
     }
 
     public OrderItem(MenuItem menuItem, int quantity, String note, int roundNumber) {
+        this(menuItem, quantity, note, roundNumber, null);
+    }
+
+    public OrderItem(MenuItem menuItem, int quantity, String note, int roundNumber, String orderedByName) {
         this.menuItem = menuItem;
         this.itemName = menuItem.getName();
         this.unitPriceVnd = menuItem.getPriceVnd();
         this.quantity = quantity;
         this.note = note;
         this.roundNumber = Math.max(1, roundNumber);
+        this.orderedByName = orderedByName;
     }
 
     public UUID getId() {
@@ -109,6 +123,18 @@ public class OrderItem {
         return createdAt;
     }
 
+    public String getOrderedByName() {
+        return orderedByName;
+    }
+
+    public String getCookedByName() {
+        return cookedByName;
+    }
+
+    public String getServedByName() {
+        return servedByName;
+    }
+
     public void attachTo(RestaurantOrder order) {
         this.order = order;
     }
@@ -117,12 +143,33 @@ public class OrderItem {
         this.status = OrderItemStatus.COOKING;
     }
 
+    public void startCooking(String actorName) {
+        this.status = OrderItemStatus.COOKING;
+        if (actorName != null && !actorName.isBlank()) {
+            this.cookedByName = actorName;
+        }
+    }
+
     public void complete() {
         this.status = OrderItemStatus.DONE;
     }
 
+    public void complete(String actorName) {
+        this.status = OrderItemStatus.DONE;
+        if (actorName != null && !actorName.isBlank()) {
+            this.cookedByName = actorName;
+        }
+    }
+
     public void serve() {
         this.status = OrderItemStatus.SERVED;
+    }
+
+    public void serve(String actorName) {
+        this.status = OrderItemStatus.SERVED;
+        if (actorName != null && !actorName.isBlank()) {
+            this.servedByName = actorName;
+        }
     }
 
     public void cancel() {

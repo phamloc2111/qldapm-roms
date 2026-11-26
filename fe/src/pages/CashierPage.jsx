@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   CreditCard,
   Utensils,
@@ -36,33 +36,46 @@ import {
   Ban,
   MessageSquare,
   ShoppingBag,
-} from 'lucide-react';
-import { useRoms } from '../context/RomsContext';
-import { formatCurrency } from '../utils/formatters';
-import { GridTableGlyph } from '../components/common/TableIcon';
-import { resolveDishImage, handleDishImageError } from '../utils/dishImages';
+  Users,
+  Eye,
+} from "lucide-react";
+import { useRoms } from "../context/RomsContext";
+import { formatCurrency } from "../utils/formatters";
+import { GridTableGlyph } from "../components/common/TableIcon";
+import { resolveDishImage, handleDishImageError } from "../utils/dishImages";
 
 function getTodayIsoDate() {
   try {
-    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Ho_Chi_Minh",
+    }).format(new Date());
   } catch {
     const d = new Date();
     const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
     return `${yyyy}-${mm}-${dd}`;
   }
 }
 
-function getCategoryIcon(name = '') {
+function getCategoryIcon(name = "") {
   const lower = String(name).toLowerCase();
-  if (lower.includes('uống') || lower.includes('nước') || lower.includes('trà') || lower.includes('cà phê')) {
+  if (
+    lower.includes("uống") ||
+    lower.includes("nước") ||
+    lower.includes("trà") ||
+    lower.includes("cà phê")
+  ) {
     return Coffee;
   }
-  if (lower.includes('khai vị')) {
+  if (lower.includes("khai vị")) {
     return ChefHat;
   }
-  if (lower.includes('tráng miệng') || lower.includes('bánh') || lower.includes('kem')) {
+  if (
+    lower.includes("tráng miệng") ||
+    lower.includes("bánh") ||
+    lower.includes("kem")
+  ) {
     return Sparkles;
   }
   return Utensils;
@@ -70,18 +83,18 @@ function getCategoryIcon(name = '') {
 
 function getOrderItemStatusLabel(status) {
   switch (status) {
-    case 'SERVED':
-      return 'Đã phục vụ';
-    case 'DONE':
-      return 'Chờ phục vụ';
-    case 'COOKING':
-      return 'Đang nấu';
-    case 'PENDING':
-      return 'Chờ chế biến';
-    case 'CANCELLED':
-      return 'Đã hủy';
+    case "SERVED":
+      return "Đã phục vụ";
+    case "DONE":
+      return "Chờ phục vụ";
+    case "COOKING":
+      return "Đang nấu";
+    case "PENDING":
+      return "Chờ chế biến";
+    case "CANCELLED":
+      return "Đã hủy";
     default:
-      return status || '';
+      return status || "";
   }
 }
 
@@ -90,19 +103,20 @@ export default function CashierPage() {
   const { logout, showToast, currentUser, apiFetch } = useRoms();
 
   // Tab đang hoạt động: 'checkout' | 'menu' | 'tables' | 'reports' | 'profile'
-  const [activeTab, setActiveTab] = useState('checkout');
+  const [activeTab, setActiveTab] = useState("checkout");
 
   // Lấy dữ liệu hồ sơ người dùng thực tế từ Backend API (GET /api/v1/auth/me)
   const [profileData, setProfileData] = useState(() => currentUser || null);
 
   useEffect(() => {
     if (apiFetch) {
-      apiFetch('/auth/me')
+      apiFetch("/auth/me")
         .then((res) => {
           if (res) {
             setProfileData({
               id: res.id,
               username: res.username,
+              fullName: res.fullName || "",
               role: res.role,
               active: res.active !== false,
             });
@@ -114,19 +128,23 @@ export default function CashierPage() {
 
   const profileUser = useMemo(() => {
     const u = profileData || currentUser || {};
-    const username = u.username || 'cashier';
-    const role = u.role || 'CASHIER';
-    let roleTitle = 'Thu ngân';
-    if (role === 'ADMIN') roleTitle = 'Quản trị viên';
-    else if (role === 'WAITER') roleTitle = 'Nhân viên phục vụ';
-    else if (role === 'KITCHEN') roleTitle = 'Nhân viên nhà bếp';
+    const username = u.username || "cashier";
+    const fullName = u.fullName || "";
+    const displayName = fullName.trim() ? fullName.trim() : username;
+    const role = u.role || "CASHIER";
+    let roleTitle = "Thu ngân";
+    if (role === "ADMIN") roleTitle = "Quản trị viên";
+    else if (role === "WAITER") roleTitle = "Nhân viên phục vụ";
+    else if (role === "KITCHEN") roleTitle = "Nhân viên nhà bếp";
 
     return {
-      id: u.id || 'N/A',
+      id: u.id || "N/A",
       username,
+      fullName,
+      displayName,
       role,
       roleTitle,
-      avatarInitial: (username[0] || 'U').toUpperCase(),
+      avatarInitial: ((displayName[0] || username[0]) || "U").toUpperCase(),
       active: u.active !== false,
     };
   }, [profileData, currentUser]);
@@ -134,11 +152,11 @@ export default function CashierPage() {
   // Phân quyền màn hình:
   // - CASHIER: Chỉ sử dụng tab Thanh toán ('checkout') và Hồ sơ ('profile')
   // - ADMIN: Có đầy đủ các tab quản trị + Thanh toán + Gọi món ('order') + Theo dõi món ('tracking')
-  const isAdmin = profileUser.role === 'ADMIN';
+  const isAdmin = profileUser.role === "ADMIN";
 
   useEffect(() => {
-    if (!isAdmin && activeTab !== 'checkout' && activeTab !== 'profile') {
-      setActiveTab('checkout');
+    if (!isAdmin && activeTab !== "checkout" && activeTab !== "profile") {
+      setActiveTab("checkout");
     }
   }, [isAdmin, activeTab]);
 
@@ -146,8 +164,8 @@ export default function CashierPage() {
   // TAB 1: TIẾP NHẬN THANH TOÁN & TÍNH TIỀN (R-C01, FR-C02)
   // ==========================================================================
   const [tables, setTables] = useState([]);
-  const [selectedTableId, setSelectedTableId] = useState('');
-  const [tableFilter, setTableFilter] = useState('ALL'); // 'ALL' | 'PAYMENT_REQUESTED' | 'SERVING' | 'AVAILABLE'
+  const [selectedTableId, setSelectedTableId] = useState("");
+  const [tableFilter, setTableFilter] = useState("ALL"); // 'ALL' | 'PAYMENT_REQUESTED' | 'SERVING' | 'AVAILABLE'
 
   // Giảm giá (VNĐ) nhập từ quầy thu ngân (FR-C02)
   const [discountVnd, setDiscountVnd] = useState(0);
@@ -155,8 +173,8 @@ export default function CashierPage() {
   // Modals Thanh toán & In ấn
   const [isBillPreviewOpen, setIsBillPreviewOpen] = useState(false);
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
-  const payMethod = 'CASH';
-  const [customerPaidAmount, setCustomerPaidAmount] = useState('');
+  const payMethod = "CASH";
+  const [customerPaidAmount, setCustomerPaidAmount] = useState("");
   const [lastPaidInvoice, setLastPaidInvoice] = useState(null);
   const [isOfficialInvoiceOpen, setIsOfficialInvoiceOpen] = useState(false);
   const [billPreviewData, setBillPreviewData] = useState(null);
@@ -165,10 +183,10 @@ export default function CashierPage() {
   // TAB 2: QUẢN LÝ THỰC ĐƠN (FR-C03)
   // ==========================================================================
   const [categories, setCategories] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('Tất cả');
+  const [selectedCategory, setSelectedCategory] = useState("Tất cả");
   const [menuItems, setMenuItems] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedMenuId, setSelectedMenuId] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedMenuId, setSelectedMenuId] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
 
@@ -177,30 +195,30 @@ export default function CashierPage() {
   const [isEditDishOpen, setIsEditDishOpen] = useState(false);
   const [isDeleteDishOpen, setIsDeleteDishOpen] = useState(false);
   const [dishForm, setDishForm] = useState({
-    name: '',
-    categoryId: '',
-    priceVnd: '',
-    imageUrl: '',
-    description: '',
+    name: "",
+    categoryId: "",
+    priceVnd: "",
+    imageUrl: "",
+    description: "",
   });
 
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [isEditCategoryOpen, setIsEditCategoryOpen] = useState(false);
   const [isDeleteCategoryOpen, setIsDeleteCategoryOpen] = useState(false);
-  const [categoryForm, setCategoryForm] = useState({ id: '', name: '' });
+  const [categoryForm, setCategoryForm] = useState({ id: "", name: "" });
 
   // ==========================================================================
   // TAB 3: QUẢN LÝ SƠ ĐỒ BÀN (FR-C04)
   // ==========================================================================
-  const [editingTableId, setEditingTableId] = useState('');
-  const [editingTableName, setEditingTableName] = useState('');
+  const [editingTableId, setEditingTableId] = useState("");
+  const [editingTableName, setEditingTableName] = useState("");
   const [editingTableCapacity, setEditingTableCapacity] = useState(4);
-  const [tableCapacityFilter, setTableCapacityFilter] = useState('ALL');
-  const [tableSearchQuery, setTableSearchQuery] = useState('');
+  const [tableCapacityFilter, setTableCapacityFilter] = useState("ALL");
+  const [tableSearchQuery, setTableSearchQuery] = useState("");
 
   const [isAddTableOpen, setIsAddTableOpen] = useState(false);
   const [isDeleteTableOpen, setIsDeleteTableOpen] = useState(false);
-  const [newTableForm, setNewTableForm] = useState({ name: '', capacity: 4 });
+  const [newTableForm, setNewTableForm] = useState({ name: "", capacity: 4 });
 
   // ==========================================================================
   // TAB 4: BÁO CÁO DOANH THU CUỐI NGÀY (FR-C05)
@@ -215,6 +233,26 @@ export default function CashierPage() {
     totalRevenueVnd: 0,
   }));
   const [topItemsReport, setTopItemsReport] = useState([]);
+  const [invoicesReport, setInvoicesReport] = useState([]);
+  const [selectedHistoryInvoice, setSelectedHistoryInvoice] = useState(null);
+
+  // ==========================================================================
+  // TAB DÀNH CHO ADMIN: QUẢN LÝ TÀI KHOẢN ('accounts')
+  // ==========================================================================
+  const [accountsList, setAccountsList] = useState([]);
+  const [accountRoleFilter, setAccountRoleFilter] = useState("ALL");
+  const [accountSearchQuery, setAccountSearchQuery] = useState("");
+  const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
+  const [isEditAccountOpen, setIsEditAccountOpen] = useState(false);
+  const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
+  const [selectedAccountForAction, setSelectedAccountForAction] = useState(null);
+  const [accountForm, setAccountForm] = useState({
+    username: "",
+    fullName: "",
+    password: "",
+    role: "WAITER",
+    active: true,
+  });
 
   // Settings Modal
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -222,22 +260,22 @@ export default function CashierPage() {
   // ==========================================================================
   // TAB DÀNH CHO ADMIN: GỌI MÓN ('order') & THEO DÕI MÓN ('tracking') (PHỤC VỤ)
   // ==========================================================================
-  const [orderTableStatusFilter, setOrderTableStatusFilter] = useState('ALL'); // 'ALL' | 'AVAILABLE' | 'OCCUPIED' | 'READY_TO_SERVE'
-  const [orderSelectedCategory, setOrderSelectedCategory] = useState('Tất cả');
-  const [orderSearchQuery, setOrderSearchQuery] = useState('');
+  const [orderTableStatusFilter, setOrderTableStatusFilter] = useState("ALL"); // 'ALL' | 'AVAILABLE' | 'OCCUPIED' | 'READY_TO_SERVE'
+  const [orderSelectedCategory, setOrderSelectedCategory] = useState("Tất cả");
+  const [orderSearchQuery, setOrderSearchQuery] = useState("");
   const [orderCartByTable, setOrderCartByTable] = useState({});
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
-  const [trackingStatusFilter, setTrackingStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'COOKING' | 'DONE' | 'SERVED'
+  const [trackingStatusFilter, setTrackingStatusFilter] = useState("ALL"); // 'ALL' | 'PENDING' | 'COOKING' | 'DONE' | 'SERVED'
 
   // ==========================================================================
   // ĐỒNG HỒ THỜI GIAN THỰC
   // ==========================================================================
   const [currentTime, setCurrentTime] = useState(() => {
     const d = new Date();
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
     const year = d.getFullYear();
     return `${hh}:${mm} ${day}/${month}/${year}`;
   });
@@ -245,10 +283,10 @@ export default function CashierPage() {
   useEffect(() => {
     const timer = setInterval(() => {
       const d = new Date();
-      const hh = String(d.getHours()).padStart(2, '0');
-      const mm = String(d.getMinutes()).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mm = String(d.getMinutes()).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      const month = String(d.getMonth() + 1).padStart(2, "0");
       const year = d.getFullYear();
       setCurrentTime(`${hh}:${mm} ${day}/${month}/${year}`);
     }, 1000);
@@ -260,7 +298,7 @@ export default function CashierPage() {
   // ==========================================================================
   const mapOrderDtoToView = useCallback((orderDto, menuImageMap) => {
     if (!orderDto || !orderDto.id) return null;
-    const cleanId = String(orderDto.id).replace(/-/g, '').toUpperCase();
+    const cleanId = String(orderDto.id).replace(/-/g, "").toUpperCase();
     return {
       id: String(orderDto.id),
       orderCode: `#${cleanId.slice(0, 4)}`,
@@ -268,18 +306,25 @@ export default function CashierPage() {
       roundCount: Number(orderDto.roundCount) || 1,
       createdAt: orderDto.createdAt,
       submittedAt: orderDto.submittedAt,
+      createdByName: orderDto.createdByName || "",
       items: (orderDto.items || [])
-        .filter((it) => it.status !== 'CANCELLED')
+        .filter((it) => it.status !== "CANCELLED")
         .map((it) => ({
           id: String(it.id),
           menuItemId: String(it.menuItemId),
           name: it.name,
           unitPriceVnd: Number(it.unitPriceVnd) || 0,
           quantity: Number(it.quantity) || 1,
-          status: it.status || 'PENDING',
-          note: it.note || '',
+          status: it.status || "PENDING",
+          note: it.note || "",
           round: Number(it.round) || 1,
-          image: resolveDishImage(it.name, menuImageMap?.get(String(it.menuItemId))),
+          orderedByName: it.orderedByName || orderDto.createdByName || "",
+          cookedByName: it.cookedByName || "",
+          servedByName: it.servedByName || "",
+          image: resolveDishImage(
+            it.name,
+            menuImageMap?.get(String(it.menuItemId)),
+          ),
         })),
     };
   }, []);
@@ -287,12 +332,18 @@ export default function CashierPage() {
   const fetchBackendData = useCallback(async () => {
     if (!apiFetch) return;
     try {
-      const [tablesData, catsData, menuData, activeOrdersData, payRequestsData] = await Promise.all([
-        apiFetch('/tables').catch(() => null),
-        apiFetch('/categories').catch(() => null),
-        apiFetch('/menu-items').catch(() => null),
-        apiFetch('/orders/active').catch(() => null),
-        apiFetch('/cashier/payment-requests').catch(() => null),
+      const [
+        tablesData,
+        catsData,
+        menuData,
+        activeOrdersData,
+        payRequestsData,
+      ] = await Promise.all([
+        apiFetch("/tables").catch(() => null),
+        apiFetch("/categories").catch(() => null),
+        apiFetch("/menu-items").catch(() => null),
+        apiFetch("/orders/active").catch(() => null),
+        apiFetch("/cashier/payment-requests").catch(() => null),
       ]);
 
       // 1. Cập nhật Danh mục (GET /api/v1/categories)
@@ -315,18 +366,20 @@ export default function CashierPage() {
           return {
             id: String(m.id),
             categoryId: String(m.categoryId),
-            categoryName: m.categoryName || '',
+            categoryName: m.categoryName || "",
             name: m.name,
-            description: m.description || '',
+            description: m.description || "",
             priceVnd: Number(m.priceVnd) || 0,
-            imageUrl: m.imageUrl || '',
+            imageUrl: m.imageUrl || "",
             available: m.available !== false,
             active: m.active !== false,
           };
         });
         setMenuItems(mappedMenu);
         setSelectedMenuId((prev) =>
-          prev && mappedMenu.some((m) => m.id === prev) ? prev : mappedMenu[0]?.id || ''
+          prev && mappedMenu.some((m) => m.id === prev)
+            ? prev
+            : mappedMenu[0]?.id || "",
         );
       }
 
@@ -354,9 +407,9 @@ export default function CashierPage() {
           const matchedOrderDto = orderByTableId.get(tId);
           const mappedOrder = mapOrderDtoToView(matchedOrderDto, menuImageMap);
           const effectiveStatus =
-            mappedOrder?.status === 'PAYMENT_REQUESTED'
-              ? 'PAYMENT_REQUESTED'
-              : t.status || (mappedOrder ? 'OCCUPIED' : 'AVAILABLE');
+            mappedOrder?.status === "PAYMENT_REQUESTED"
+              ? "PAYMENT_REQUESTED"
+              : t.status || (mappedOrder ? "OCCUPIED" : "AVAILABLE");
 
           return {
             id: tId,
@@ -364,14 +417,16 @@ export default function CashierPage() {
             capacity: Number(t.capacity) || 4,
             status: effectiveStatus,
             active: t.active !== false,
-            hasNotification: effectiveStatus === 'PAYMENT_REQUESTED',
+            hasNotification: effectiveStatus === "PAYMENT_REQUESTED",
             order: mappedOrder,
           };
         });
 
         setTables(mappedTables);
         setSelectedTableId((prev) =>
-          prev && mappedTables.some((t) => t.id === prev) ? prev : mappedTables[0]?.id || ''
+          prev && mappedTables.some((t) => t.id === prev)
+            ? prev
+            : mappedTables[0]?.id || "",
         );
         setEditingTableId((prev) => {
           const existing = mappedTables.find((t) => t.id === prev);
@@ -382,9 +437,9 @@ export default function CashierPage() {
             setEditingTableCapacity(first.capacity || 4);
             return first.id;
           }
-          setEditingTableName('');
+          setEditingTableName("");
           setEditingTableCapacity(4);
-          return '';
+          return "";
         });
       }
     } catch {
@@ -411,24 +466,40 @@ export default function CashierPage() {
       if (!apiFetch) return;
       try {
         // FR-C05: GET /api/v1/reports/summary?date=YYYY-MM-DD&limit=10
-        const summary = await apiFetch(`/reports/summary?date=${dateStr}&limit=10`).catch(() => null);
+        const summary = await apiFetch(
+          `/reports/summary?date=${dateStr}&limit=10`,
+        ).catch(() => null);
         if (summary && summary.revenue) {
           setRevenueReport({
             date: summary.revenue.date || dateStr,
-            totalOrdersCompleted: Number(summary.revenue.totalOrdersCompleted) || 0,
+            totalOrdersCompleted:
+              Number(summary.revenue.totalOrdersCompleted) || 0,
             subtotalVnd: Number(summary.revenue.subtotalVnd) || 0,
             discountVnd: Number(summary.revenue.discountVnd) || 0,
             vatVnd: Number(summary.revenue.vatVnd) || 0,
             totalRevenueVnd: Number(summary.revenue.totalRevenueVnd) || 0,
           });
-          setTopItemsReport(Array.isArray(summary.topItems) ? summary.topItems : []);
+          setTopItemsReport(
+            Array.isArray(summary.topItems) ? summary.topItems : [],
+          );
+          if (Array.isArray(summary.invoices)) {
+            setInvoicesReport(summary.invoices);
+          } else {
+            const invList = await apiFetch(
+              `/reports/invoices?date=${dateStr}`,
+            ).catch(() => []);
+            setInvoicesReport(Array.isArray(invList) ? invList : []);
+          }
           return;
         }
 
-        // Fallback gọi lẻ GET /api/v1/reports/revenue & /api/v1/reports/top-items
-        const [rev, top] = await Promise.all([
+        // Fallback gọi lẻ GET /api/v1/reports/revenue, /top-items & /invoices
+        const [rev, top, invList] = await Promise.all([
           apiFetch(`/reports/revenue?date=${dateStr}`).catch(() => null),
-          apiFetch(`/reports/top-items?date=${dateStr}&limit=10`).catch(() => null),
+          apiFetch(`/reports/top-items?date=${dateStr}&limit=10`).catch(
+            () => null,
+          ),
+          apiFetch(`/reports/invoices?date=${dateStr}`).catch(() => []),
         ]);
         if (rev) {
           setRevenueReport({
@@ -443,11 +514,14 @@ export default function CashierPage() {
         if (Array.isArray(top)) {
           setTopItemsReport(top);
         }
+        if (Array.isArray(invList)) {
+          setInvoicesReport(invList);
+        }
       } catch {
         // Ignored
       }
     },
-    [apiFetch, reportDate]
+    [apiFetch, reportDate],
   );
 
   // Tải báo cáo doanh thu khi khởi chạy và khi mở tab Báo cáo (chỉ dành cho ADMIN)
@@ -470,7 +544,7 @@ export default function CashierPage() {
 
   // Đếm số lượng món đã phục vụ (SERVED) so với tổng số món (R-C01)
   const servedItemsCount = useMemo(() => {
-    return orderItems.filter((it) => it.status === 'SERVED').length;
+    return orderItems.filter((it) => it.status === "SERVED").length;
   }, [orderItems]);
 
   const totalItemsCount = orderItems.length;
@@ -478,7 +552,7 @@ export default function CashierPage() {
   // Giảm giá hợp lệ (0 <= discountVnd <= subtotal)
   const safeDiscount = useMemo(() => {
     const rawSubtotal = orderItems
-      .filter((item) => item.status === 'SERVED')
+      .filter((item) => item.status === "SERVED")
       .reduce((acc, item) => acc + item.unitPriceVnd * item.quantity, 0);
     return Math.min(Math.max(0, Number(discountVnd) || 0), rawSubtotal);
   }, [discountVnd, orderItems]);
@@ -510,9 +584,10 @@ export default function CashierPage() {
 
   // Tính tiền dựa trên các món ĐÃ PHỤC VỤ (theo đúng logic calculateBill trong PaymentService & preview BE)
   const subtotal = useMemo(() => {
-    if (billPreviewData?.subtotalVnd != null) return billPreviewData.subtotalVnd;
+    if (billPreviewData?.subtotalVnd != null)
+      return billPreviewData.subtotalVnd;
     return orderItems
-      .filter((item) => item.status === 'SERVED')
+      .filter((item) => item.status === "SERVED")
       .reduce((acc, item) => acc + item.unitPriceVnd * item.quantity, 0);
   }, [billPreviewData, orderItems]);
 
@@ -532,20 +607,20 @@ export default function CashierPage() {
 
   // Lọc bàn ở Tab 1 theo trạng thái chuẩn BE TableStatus (AVAILABLE, OCCUPIED, READY_TO_SERVE, PAYMENT_REQUESTED)
   const filteredTables = useMemo(() => {
-    if (tableFilter === 'ALL') return tables;
-    if (tableFilter === 'PAYMENT_REQUESTED') {
-      return tables.filter((t) => t.status === 'PAYMENT_REQUESTED');
+    if (tableFilter === "ALL") return tables;
+    if (tableFilter === "PAYMENT_REQUESTED") {
+      return tables.filter((t) => t.status === "PAYMENT_REQUESTED");
     }
-    if (tableFilter === 'SERVING') {
+    if (tableFilter === "SERVING") {
       return tables.filter(
         (t) =>
-          t.status === 'OCCUPIED' ||
-          t.status === 'READY_TO_SERVE' ||
-          t.status === 'SERVING'
+          t.status === "OCCUPIED" ||
+          t.status === "READY_TO_SERVE" ||
+          t.status === "SERVING",
       );
     }
-    if (tableFilter === 'AVAILABLE') {
-      return tables.filter((t) => t.status === 'AVAILABLE');
+    if (tableFilter === "AVAILABLE") {
+      return tables.filter((t) => t.status === "AVAILABLE");
     }
     return tables;
   }, [tables, tableFilter]);
@@ -566,7 +641,8 @@ export default function CashierPage() {
   const filteredManagementTables = useMemo(() => {
     return tables.filter((t) => {
       const matchCap =
-        tableCapacityFilter === 'ALL' || (Number(t.capacity) || 4) === Number(tableCapacityFilter);
+        tableCapacityFilter === "ALL" ||
+        (Number(t.capacity) || 4) === Number(tableCapacityFilter);
       const matchSearch =
         !tableSearchQuery.trim() ||
         t.name.toLowerCase().includes(tableSearchQuery.trim().toLowerCase());
@@ -585,41 +661,46 @@ export default function CashierPage() {
     if (!apiFetch) return;
 
     const menuImageMap = new Map();
-    menuItems.forEach((m) => menuImageMap.set(String(m.id), resolveDishImage(m.name, m.imageUrl)));
+    menuItems.forEach((m) =>
+      menuImageMap.set(String(m.id), resolveDishImage(m.name, m.imageUrl)),
+    );
 
     try {
-      const currentOrder = await apiFetch(`/tables/${tbl.id}/current-order`).catch(() => null);
+      const currentOrder = await apiFetch(
+        `/tables/${tbl.id}/current-order`,
+      ).catch(() => null);
       if (currentOrder && currentOrder.id) {
         const mappedOrder = mapOrderDtoToView(currentOrder, menuImageMap);
         setTables((prev) =>
           prev.map((t) =>
             t.id === tbl.id
               ? {
-                ...t,
-                status:
-                  currentOrder.status === 'PAYMENT_REQUESTED'
-                    ? 'PAYMENT_REQUESTED'
-                    : currentOrder.status === 'PAID' || currentOrder.status === 'CLOSED'
-                      ? 'AVAILABLE'
-                      : 'OCCUPIED',
-                hasNotification: currentOrder.status === 'PAYMENT_REQUESTED',
-                order: mappedOrder,
-              }
-              : t
-          )
+                  ...t,
+                  status:
+                    currentOrder.status === "PAYMENT_REQUESTED"
+                      ? "PAYMENT_REQUESTED"
+                      : currentOrder.status === "PAID" ||
+                          currentOrder.status === "CLOSED"
+                        ? "AVAILABLE"
+                        : "OCCUPIED",
+                  hasNotification: currentOrder.status === "PAYMENT_REQUESTED",
+                  order: mappedOrder,
+                }
+              : t,
+          ),
         );
       } else {
         setTables((prev) =>
           prev.map((t) =>
             t.id === tbl.id
               ? {
-                ...t,
-                status: 'AVAILABLE',
-                hasNotification: false,
-                order: null,
-              }
-              : t
-          )
+                  ...t,
+                  status: "AVAILABLE",
+                  hasNotification: false,
+                  order: null,
+                }
+              : t,
+          ),
         );
       }
     } catch {
@@ -629,17 +710,20 @@ export default function CashierPage() {
 
   const handleOpenPaymentModal = () => {
     if (!selectedTable?.order || orderItems.length === 0) {
-      showToast('Bàn này chưa có đơn hàng để thanh toán.', 'error');
+      showToast("Bàn này chưa có đơn hàng để thanh toán.", "error");
       return;
     }
     if (servedItemsCount === 0) {
-      showToast('Chưa có món ăn nào được đánh dấu "Đã phục vụ" để tính tiền!', 'error');
+      showToast(
+        'Chưa có món ăn nào được đánh dấu "Đã phục vụ" để tính tiền!',
+        "error",
+      );
       return;
     }
     if (servedItemsCount < totalItemsCount) {
       showToast(
-        'Vẫn còn món chưa phục vụ xong! Chỉ đơn đã phục vụ hết món mới có thể thanh toán.',
-        'error'
+        "Vẫn còn món chưa phục vụ xong! Chỉ đơn đã phục vụ hết món mới có thể thanh toán.",
+        "error",
       );
       return;
     }
@@ -649,34 +733,48 @@ export default function CashierPage() {
 
   const handleConfirmPayment = async () => {
     if (!selectedTable?.order?.id) return;
+    const paidAmount = Number(customerPaidAmount);
+    if (
+      String(customerPaidAmount).trim() === "" ||
+      Number.isNaN(paidAmount) ||
+      paidAmount < grandTotal
+    ) {
+      showToast(
+        `Tiền khách đưa không được nhỏ hơn tổng tiền hóa đơn (${formatCurrency(grandTotal)})!`,
+        "error",
+      );
+      return;
+    }
     const orderId = selectedTable.order.id;
 
     try {
       // Trong Backend (PaymentService.pay), order bắt buộc phải ở trạng thái PAYMENT_REQUESTED.
       // Nếu đơn đã phục vụ xong hết món (SERVED) nhưng phục vụ chưa bấm yêu cầu thanh toán,
       // thu ngân tự động chuyển sang PAYMENT_REQUESTED trước khi gọi /pay.
-      if (selectedTable.order.status !== 'PAYMENT_REQUESTED') {
+      if (selectedTable.order.status !== "PAYMENT_REQUESTED") {
         await apiFetch(`/orders/${orderId}/request-payment`, {
-          method: 'POST',
+          method: "POST",
         });
       }
 
       const payResult = await apiFetch(`/orders/${orderId}/pay`, {
-        method: 'POST',
+        method: "POST",
         body: JSON.stringify({
           discountVnd: safeDiscount,
-          method: 'CASH', // PaymentMethod trong BE: CASH
+          method: "CASH", // PaymentMethod trong BE: CASH
         }),
       });
 
-      const invoiceItems = (billPreviewData?.items || orderItems.filter((it) => it.status === 'SERVED')).map(
-        (it) => ({
-          id: it.id || it.orderItemId,
-          name: it.name,
-          quantity: it.quantity,
-          unitPriceVnd: it.unitPriceVnd,
-        })
-      );
+      const servedOrderItems = orderItems.filter((it) => it.status === "SERVED");
+      const invoiceItems = servedOrderItems.map((it) => ({
+        id: it.id || it.orderItemId,
+        name: it.name,
+        quantity: it.quantity,
+        unitPriceVnd: it.unitPriceVnd,
+        orderedByName: it.orderedByName || selectedTable.order?.createdByName || "",
+        cookedByName: it.cookedByName || "",
+        servedByName: it.servedByName || "",
+      }));
 
       const finalAmount = payResult?.amountVnd ?? grandTotal;
 
@@ -685,21 +783,27 @@ export default function CashierPage() {
         invoiceCode: payResult?.invoiceId
           ? `HD-${String(payResult.invoiceId).slice(0, 8).toUpperCase()}`
           : `HD-${Date.now().toString().slice(-6)}`,
-        paymentId: payResult?.paymentId ? String(payResult.paymentId).slice(0, 8).toUpperCase() : null,
-        orderCode: selectedTable.order?.orderCode || '#0000',
+        paymentId: payResult?.paymentId
+          ? String(payResult.paymentId).slice(0, 8).toUpperCase()
+          : null,
+        orderCode: selectedTable.order?.orderCode || "#0000",
         tableName: selectedTable.name,
-        cashierName: profileUser.username,
+        cashierName: payResult?.cashierName || profileUser.displayName,
+        createdByName: selectedTable.order?.createdByName || "",
         paidAt: payResult?.paidAt
-          ? new Date(payResult.paidAt).toLocaleString('vi-VN')
-          : new Date().toLocaleString('vi-VN'),
-        method: payMethod === 'CASH' ? 'Tiền mặt' : 'Chuyển khoản (VietQR)',
+          ? new Date(payResult.paidAt).toLocaleString("vi-VN")
+          : new Date().toLocaleString("vi-VN"),
+        method: payMethod === "CASH" ? "Tiền mặt" : "Chuyển khoản (VietQR)",
         items: invoiceItems,
         subtotal,
         discountVnd: safeDiscount,
         vatAmount,
         grandTotal: finalAmount,
         customerPaid: Number(customerPaidAmount) || finalAmount,
-        changeAmount: Math.max(0, (Number(customerPaidAmount) || finalAmount) - finalAmount),
+        changeAmount: Math.max(
+          0,
+          (Number(customerPaidAmount) || finalAmount) - finalAmount,
+        ),
       };
 
       setLastPaidInvoice(invoice);
@@ -711,9 +815,12 @@ export default function CashierPage() {
       await fetchBackendData();
       await handleFetchReportByDate(reportDate);
 
-      showToast(`Đã thanh toán thành công hóa đơn cho ${selectedTable.name}!`, 'success');
+      showToast(
+        `Đã thanh toán thành công hóa đơn cho ${selectedTable.name}!`,
+        "success",
+      );
     } catch (err) {
-      showToast(err.message || 'Không thể thanh toán đơn hàng này.', 'error');
+      showToast(err.message || "Không thể thanh toán đơn hàng này.", "error");
     }
   };
 
@@ -723,15 +830,20 @@ export default function CashierPage() {
   const filteredMenuItems = useMemo(() => {
     return menuItems.filter((item) => {
       const matchCat =
-        selectedCategory === 'Tất cả' ||
+        selectedCategory === "Tất cả" ||
         item.categoryName === selectedCategory ||
         item.categoryId === selectedCategory;
-      const matchSearch = item.name.toLowerCase().includes(searchQuery.trim().toLowerCase());
+      const matchSearch = item.name
+        .toLowerCase()
+        .includes(searchQuery.trim().toLowerCase());
       return matchCat && matchSearch;
     });
   }, [menuItems, selectedCategory, searchQuery]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredMenuItems.length / itemsPerPage));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredMenuItems.length / itemsPerPage),
+  );
   const paginatedMenuItems = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredMenuItems.slice(start, start + itemsPerPage);
@@ -740,24 +852,28 @@ export default function CashierPage() {
   // Thêm món ăn mới (POST /api/v1/menu-items)
   const handleCreateMenuItem = async () => {
     if (!dishForm.name.trim()) {
-      showToast('Vui lòng nhập tên món ăn.', 'error');
+      showToast("Vui lòng nhập tên món ăn.", "error");
       return;
     }
     const priceNum = Number(dishForm.priceVnd);
-    if (dishForm.priceVnd === '' || Number.isNaN(priceNum) || priceNum < 0) {
-      showToast('Giá món ăn không hợp lệ.', 'error');
+    if (dishForm.priceVnd === "" || Number.isNaN(priceNum) || priceNum < 0) {
+      showToast("Giá món ăn không hợp lệ.", "error");
       return;
     }
 
-    const targetCat = categories.find((c) => c.id === dishForm.categoryId) || categories[0];
+    const targetCat =
+      categories.find((c) => c.id === dishForm.categoryId) || categories[0];
     if (!targetCat) {
-      showToast('Vui lòng tạo ít nhất 1 danh mục trước khi thêm món ăn.', 'error');
+      showToast(
+        "Vui lòng tạo ít nhất 1 danh mục trước khi thêm món ăn.",
+        "error",
+      );
       return;
     }
 
     try {
-      const created = await apiFetch('/menu-items', {
-        method: 'POST',
+      const created = await apiFetch("/menu-items", {
+        method: "POST",
         body: JSON.stringify({
           categoryId: targetCat.id,
           name: dishForm.name.trim(),
@@ -772,9 +888,9 @@ export default function CashierPage() {
         categoryId: String(created.categoryId),
         categoryName: created.categoryName || targetCat.name,
         name: created.name,
-        description: created.description || '',
+        description: created.description || "",
         priceVnd: Number(created.priceVnd) || 0,
-        imageUrl: created.imageUrl || '',
+        imageUrl: created.imageUrl || "",
         available: created.available !== false,
         active: created.active !== false,
       };
@@ -783,15 +899,15 @@ export default function CashierPage() {
       setSelectedMenuId(newDish.id);
       setIsAddDishOpen(false);
       setDishForm({
-        name: '',
-        categoryId: categories[0]?.id || '',
-        priceVnd: '',
-        imageUrl: '',
-        description: '',
+        name: "",
+        categoryId: categories[0]?.id || "",
+        priceVnd: "",
+        imageUrl: "",
+        description: "",
       });
-      showToast(`Đã thêm món "${newDish.name}" vào thực đơn!`, 'success');
+      showToast(`Đã thêm món "${newDish.name}" vào thực đơn!`, "success");
     } catch (err) {
-      showToast(err.message || 'Không thể thêm món ăn mới.', 'error');
+      showToast(err.message || "Không thể thêm món ăn mới.", "error");
     }
   };
 
@@ -799,24 +915,25 @@ export default function CashierPage() {
   const handleUpdateMenuItem = async () => {
     if (!selectedMenuId) return;
     if (!dishForm.name.trim()) {
-      showToast('Vui lòng nhập tên món ăn.', 'error');
+      showToast("Vui lòng nhập tên món ăn.", "error");
       return;
     }
     const priceNum = Number(dishForm.priceVnd);
-    if (dishForm.priceVnd === '' || Number.isNaN(priceNum) || priceNum < 0) {
-      showToast('Giá món ăn không hợp lệ.', 'error');
+    if (dishForm.priceVnd === "" || Number.isNaN(priceNum) || priceNum < 0) {
+      showToast("Giá món ăn không hợp lệ.", "error");
       return;
     }
 
-    const targetCat = categories.find((c) => c.id === dishForm.categoryId) || categories[0];
+    const targetCat =
+      categories.find((c) => c.id === dishForm.categoryId) || categories[0];
     if (!targetCat) {
-      showToast('Không tìm thấy danh mục hợp lệ.', 'error');
+      showToast("Không tìm thấy danh mục hợp lệ.", "error");
       return;
     }
 
     try {
       const updated = await apiFetch(`/menu-items/${selectedMenuId}`, {
-        method: 'PATCH',
+        method: "PATCH",
         body: JSON.stringify({
           categoryId: targetCat.id,
           name: dishForm.name.trim(),
@@ -830,24 +947,24 @@ export default function CashierPage() {
         prev.map((m) =>
           m.id === selectedMenuId
             ? {
-              ...m,
-              id: String(updated.id),
-              name: updated.name,
-              categoryId: String(updated.categoryId),
-              categoryName: updated.categoryName || targetCat.name,
-              priceVnd: Number(updated.priceVnd) || 0,
-              imageUrl: updated.imageUrl || '',
-              description: updated.description || '',
-              available: updated.available !== false,
-            }
-            : m
-        )
+                ...m,
+                id: String(updated.id),
+                name: updated.name,
+                categoryId: String(updated.categoryId),
+                categoryName: updated.categoryName || targetCat.name,
+                priceVnd: Number(updated.priceVnd) || 0,
+                imageUrl: updated.imageUrl || "",
+                description: updated.description || "",
+                available: updated.available !== false,
+              }
+            : m,
+        ),
       );
 
       setIsEditDishOpen(false);
-      showToast('Đã cập nhật thông tin món ăn!', 'success');
+      showToast("Đã cập nhật thông tin món ăn!", "success");
     } catch (err) {
-      showToast(err.message || 'Không thể cập nhật món ăn.', 'error');
+      showToast(err.message || "Không thể cập nhật món ăn.", "error");
     }
   };
 
@@ -862,22 +979,27 @@ export default function CashierPage() {
 
     try {
       const updated = await apiFetch(`/menu-items/${idToToggle}/availability`, {
-        method: 'PATCH',
+        method: "PATCH",
         body: JSON.stringify({ available: newAvailable }),
       });
 
-      const finalAvailable = updated ? updated.available !== false : newAvailable;
+      const finalAvailable = updated
+        ? updated.available !== false
+        : newAvailable;
       setMenuItems((prev) =>
-        prev.map((m) => (m.id === idToToggle ? { ...m, available: finalAvailable } : m))
+        prev.map((m) =>
+          m.id === idToToggle ? { ...m, available: finalAvailable } : m,
+        ),
       );
 
       showToast(
-        `Đã chuyển món "${item.name}" sang: ${finalAvailable ? 'Còn hàng (Đang phục vụ)' : 'Hết hàng (Tạm ngưng)'
+        `Đã chuyển món "${item.name}" sang: ${
+          finalAvailable ? "Còn hàng (Đang phục vụ)" : "Hết hàng (Tạm ngưng)"
         }`,
-        finalAvailable ? 'success' : 'info'
+        finalAvailable ? "success" : "info",
       );
     } catch (err) {
-      showToast(err.message || 'Không thể đổi trạng thái món ăn.', 'error');
+      showToast(err.message || "Không thể đổi trạng thái món ăn.", "error");
     }
   };
 
@@ -885,14 +1007,14 @@ export default function CashierPage() {
   const handleDeleteMenuItem = async () => {
     if (!selectedMenuId) return;
     try {
-      await apiFetch(`/menu-items/${selectedMenuId}`, { method: 'DELETE' });
+      await apiFetch(`/menu-items/${selectedMenuId}`, { method: "DELETE" });
       const remaining = menuItems.filter((m) => m.id !== selectedMenuId);
       setMenuItems(remaining);
-      setSelectedMenuId(remaining[0]?.id || '');
+      setSelectedMenuId(remaining[0]?.id || "");
       setIsDeleteDishOpen(false);
-      showToast('Đã xóa món ăn khỏi thực đơn!', 'info');
+      showToast("Đã xóa món ăn khỏi thực đơn!", "info");
     } catch (err) {
-      showToast(err.message || 'Không thể xóa món ăn.', 'error');
+      showToast(err.message || "Không thể xóa món ăn.", "error");
     }
   };
 
@@ -900,13 +1022,13 @@ export default function CashierPage() {
   const handleCreateCategory = async () => {
     const trimmed = categoryForm.name.trim();
     if (!trimmed) {
-      showToast('Vui lòng nhập tên danh mục.', 'error');
+      showToast("Vui lòng nhập tên danh mục.", "error");
       return;
     }
 
     try {
-      const created = await apiFetch('/categories', {
-        method: 'POST',
+      const created = await apiFetch("/categories", {
+        method: "POST",
         body: JSON.stringify({ name: trimmed }),
       });
 
@@ -919,24 +1041,24 @@ export default function CashierPage() {
 
       setCategories((prev) => [...prev, newCat]);
       setIsAddCategoryOpen(false);
-      setCategoryForm({ id: '', name: '' });
-      showToast(`Đã thêm danh mục "${newCat.name}"!`, 'success');
+      setCategoryForm({ id: "", name: "" });
+      showToast(`Đã thêm danh mục "${newCat.name}"!`, "success");
     } catch (err) {
-      showToast(err.message || 'Không thể thêm danh mục.', 'error');
+      showToast(err.message || "Không thể thêm danh mục.", "error");
     }
   };
 
   const handleUpdateCategory = async () => {
     const trimmed = categoryForm.name.trim();
     if (!trimmed) {
-      showToast('Vui lòng nhập tên danh mục.', 'error');
+      showToast("Vui lòng nhập tên danh mục.", "error");
       return;
     }
     if (!categoryForm.id) return;
 
     try {
       const updated = await apiFetch(`/categories/${categoryForm.id}`, {
-        method: 'PATCH',
+        method: "PATCH",
         body: JSON.stringify({ name: trimmed }),
       });
 
@@ -945,33 +1067,35 @@ export default function CashierPage() {
         prev.map((c) =>
           c.id === categoryForm.id
             ? { ...c, name: updatedName, icon: getCategoryIcon(updatedName) }
-            : c
-        )
+            : c,
+        ),
       );
       setMenuItems((prev) =>
         prev.map((m) =>
-          m.categoryId === categoryForm.id ? { ...m, categoryName: updatedName } : m
-        )
+          m.categoryId === categoryForm.id
+            ? { ...m, categoryName: updatedName }
+            : m,
+        ),
       );
       setIsEditCategoryOpen(false);
-      showToast(`Đã đổi tên danh mục thành "${updatedName}"!`, 'success');
+      showToast(`Đã đổi tên danh mục thành "${updatedName}"!`, "success");
     } catch (err) {
-      showToast(err.message || 'Không thể cập nhật danh mục.', 'error');
+      showToast(err.message || "Không thể cập nhật danh mục.", "error");
     }
   };
 
   const handleDeleteCategory = async () => {
     if (!categoryForm.id) return;
     try {
-      await apiFetch(`/categories/${categoryForm.id}`, { method: 'DELETE' });
+      await apiFetch(`/categories/${categoryForm.id}`, { method: "DELETE" });
       if (selectedCategory === categoryForm.name) {
-        setSelectedCategory('Tất cả');
+        setSelectedCategory("Tất cả");
       }
       setIsDeleteCategoryOpen(false);
       await fetchBackendData();
-      showToast('Đã xóa danh mục!', 'info');
+      showToast("Đã xóa danh mục!", "info");
     } catch (err) {
-      showToast(err.message || 'Không thể xóa danh mục.', 'error');
+      showToast(err.message || "Không thể xóa danh mục.", "error");
     }
   };
 
@@ -986,14 +1110,14 @@ export default function CashierPage() {
 
   const handleCreateTable = async () => {
     if (!newTableForm.name.trim()) {
-      showToast('Vui lòng nhập tên bàn.', 'error');
+      showToast("Vui lòng nhập tên bàn.", "error");
       return;
     }
     const cap = Math.max(1, Number(newTableForm.capacity) || 4);
 
     try {
-      const created = await apiFetch('/tables', {
-        method: 'POST',
+      const created = await apiFetch("/tables", {
+        method: "POST",
         body: JSON.stringify({ name: newTableForm.name.trim(), capacity: cap }),
       });
 
@@ -1001,7 +1125,7 @@ export default function CashierPage() {
         id: String(created.id),
         name: created.name,
         capacity: Number(created.capacity) || cap,
-        status: created.status || 'AVAILABLE',
+        status: created.status || "AVAILABLE",
         active: created.active !== false,
         hasNotification: false,
         order: null,
@@ -1013,10 +1137,13 @@ export default function CashierPage() {
         setSelectedTableId(newTbl.id);
       }
       setIsAddTableOpen(false);
-      setNewTableForm({ name: '', capacity: 4 });
-      showToast(`Đã thêm bàn "${newTbl.name}" (${newTbl.capacity} chỗ)!`, 'success');
+      setNewTableForm({ name: "", capacity: 4 });
+      showToast(
+        `Đã thêm bàn "${newTbl.name}" (${newTbl.capacity} chỗ)!`,
+        "success",
+      );
     } catch (err) {
-      showToast(err.message || 'Không thể thêm bàn mới.', 'error');
+      showToast(err.message || "Không thể thêm bàn mới.", "error");
     }
   };
 
@@ -1024,14 +1151,14 @@ export default function CashierPage() {
     if (!editingTableId) return;
     const trimmed = editingTableName.trim();
     if (!trimmed) {
-      showToast('Tên bàn không được để trống.', 'error');
+      showToast("Tên bàn không được để trống.", "error");
       return;
     }
     const cap = Math.max(1, Number(editingTableCapacity) || 4);
 
     try {
       const updated = await apiFetch(`/tables/${editingTableId}`, {
-        method: 'PATCH',
+        method: "PATCH",
         body: JSON.stringify({ name: trimmed, capacity: cap }),
       });
 
@@ -1040,33 +1167,35 @@ export default function CashierPage() {
 
       setTables((prev) =>
         prev.map((t) =>
-          t.id === editingTableId ? { ...t, name: finalName, capacity: finalCap } : t
-        )
+          t.id === editingTableId
+            ? { ...t, name: finalName, capacity: finalCap }
+            : t,
+        ),
       );
-      showToast(`Đã lưu thông tin bàn ${finalName}!`, 'success');
+      showToast(`Đã lưu thông tin bàn ${finalName}!`, "success");
     } catch (err) {
-      showToast(err.message || 'Không thể cập nhật thông tin bàn.', 'error');
+      showToast(err.message || "Không thể cập nhật thông tin bàn.", "error");
     }
   };
 
   const handleDeleteTable = async () => {
     if (!editingTableId) return;
     try {
-      await apiFetch(`/tables/${editingTableId}`, { method: 'DELETE' });
+      await apiFetch(`/tables/${editingTableId}`, { method: "DELETE" });
       const remaining = tables.filter((t) => t.id !== editingTableId);
       setTables(remaining);
       setIsDeleteTableOpen(false);
       if (remaining.length > 0) {
         handleSelectTableForEdit(remaining[0]);
       } else {
-        setEditingTableId('');
-        setEditingTableName('');
+        setEditingTableId("");
+        setEditingTableName("");
         setEditingTableCapacity(4);
       }
-      showToast('Đã xóa bàn khỏi sơ đồ!', 'info');
+      showToast("Đã xóa bàn khỏi sơ đồ!", "info");
     } catch (err) {
       setIsDeleteTableOpen(false);
-      showToast(err.message || 'Không thể xóa bàn đang có khách.', 'error');
+      showToast(err.message || "Không thể xóa bàn đang có khách.", "error");
     }
   };
 
@@ -1076,7 +1205,7 @@ export default function CashierPage() {
   const filteredOrderMenuItems = useMemo(() => {
     return menuItems.filter((item) => {
       const matchCat =
-        orderSelectedCategory === 'Tất cả' ||
+        orderSelectedCategory === "Tất cả" ||
         item.categoryName === orderSelectedCategory ||
         item.categoryId === orderSelectedCategory;
       const matchSearch = item.name
@@ -1092,20 +1221,26 @@ export default function CashierPage() {
   }, [orderCartByTable, selectedTable]);
 
   const currentCartTotalVnd = useMemo(() => {
-    return currentTableCart.reduce((acc, it) => acc + it.priceVnd * it.quantity, 0);
+    return currentTableCart.reduce(
+      (acc, it) => acc + it.priceVnd * it.quantity,
+      0,
+    );
   }, [currentTableCart]);
 
   const handleAddDishToOrderCart = (dish) => {
     if (!selectedTable?.id) {
-      showToast('Vui lòng chọn một bàn trước khi gọi món.', 'error');
+      showToast("Vui lòng chọn một bàn trước khi gọi món.", "error");
       return;
     }
     if (dish.available === false) {
-      showToast(`Món "${dish.name}" hiện đang tạm hết hàng.`, 'error');
+      showToast(`Món "${dish.name}" hiện đang tạm hết hàng.`, "error");
       return;
     }
-    if (selectedTable.status === 'PAYMENT_REQUESTED') {
-      showToast('Bàn này đang chờ thanh toán, vui lòng hoàn tất thanh toán trước.', 'error');
+    if (selectedTable.status === "PAYMENT_REQUESTED") {
+      showToast(
+        "Bàn này đang chờ thanh toán, vui lòng hoàn tất thanh toán trước.",
+        "error",
+      );
       return;
     }
     const tId = selectedTable.id;
@@ -1127,7 +1262,7 @@ export default function CashierPage() {
             priceVnd: dish.priceVnd,
             imageUrl: resolveDishImage(dish.name, dish.imageUrl),
             quantity: 1,
-            note: '',
+            note: "",
           },
         ],
       };
@@ -1141,7 +1276,9 @@ export default function CashierPage() {
       const existingList = prev[tId] || [];
       const updated = existingList
         .map((it) =>
-          it.menuItemId === menuItemId ? { ...it, quantity: it.quantity + delta } : it
+          it.menuItemId === menuItemId
+            ? { ...it, quantity: it.quantity + delta }
+            : it,
         )
         .filter((it) => it.quantity > 0);
       return { ...prev, [tId]: updated };
@@ -1154,7 +1291,7 @@ export default function CashierPage() {
     setOrderCartByTable((prev) => {
       const existingList = prev[tId] || [];
       const updated = existingList.map((it) =>
-        it.menuItemId === menuItemId ? { ...it, note } : it
+        it.menuItemId === menuItemId ? { ...it, note } : it,
       );
       return { ...prev, [tId]: updated };
     });
@@ -1171,7 +1308,12 @@ export default function CashierPage() {
 
   // Gửi đơn gọi món xuống bếp (POST /api/v1/orders hoặc POST /api/v1/orders/{id}/items)
   const handleSubmitOrderToKitchen = async () => {
-    if (!selectedTable?.id || currentTableCart.length === 0 || isSubmittingOrder) return;
+    if (
+      !selectedTable?.id ||
+      currentTableCart.length === 0 ||
+      isSubmittingOrder
+    )
+      return;
     setIsSubmittingOrder(true);
     try {
       const payloadItems = currentTableCart.map((it) => ({
@@ -1183,16 +1325,16 @@ export default function CashierPage() {
       const activeOrderId = selectedTable.order?.id;
       if (
         activeOrderId &&
-        selectedTable.order.status !== 'PAID' &&
-        selectedTable.order.status !== 'CLOSED'
+        selectedTable.order.status !== "PAID" &&
+        selectedTable.order.status !== "CLOSED"
       ) {
         await apiFetch(`/orders/${activeOrderId}/items`, {
-          method: 'POST',
+          method: "POST",
           body: JSON.stringify({ items: payloadItems }),
         });
       } else {
-        await apiFetch('/orders', {
-          method: 'POST',
+        await apiFetch("/orders", {
+          method: "POST",
           body: JSON.stringify({
             tableId: selectedTable.id,
             items: payloadItems,
@@ -1203,9 +1345,12 @@ export default function CashierPage() {
       setOrderCartByTable((prev) => ({ ...prev, [selectedTable.id]: [] }));
       await fetchBackendData();
       await handleSelectTable(selectedTable);
-      showToast(`Đã gửi đơn gọi món của bàn ${selectedTable.name} xuống bếp!`, 'success');
+      showToast(
+        `Đã gửi đơn gọi món của bàn ${selectedTable.name} xuống bếp!`,
+        "success",
+      );
     } catch (err) {
-      showToast(err.message || 'Không thể gửi đơn gọi món xuống bếp.', 'error');
+      showToast(err.message || "Không thể gửi đơn gọi món xuống bếp.", "error");
     } finally {
       setIsSubmittingOrder(false);
     }
@@ -1214,24 +1359,27 @@ export default function CashierPage() {
   // Xác nhận đã phục vụ món (POST /api/v1/order-items/{id}/serve)
   const handleServeOrderItem = async (orderItemId, itemName) => {
     try {
-      await apiFetch(`/order-items/${orderItemId}/serve`, { method: 'POST' });
+      await apiFetch(`/order-items/${orderItemId}/serve`, { method: "POST" });
       await fetchBackendData();
       if (selectedTable) await handleSelectTable(selectedTable);
-      showToast(`Đã xác nhận phục vụ món "${itemName}"!`, 'success');
+      showToast(`Đã xác nhận phục vụ món "${itemName}"!`, "success");
     } catch (err) {
-      showToast(err.message || 'Không thể xác nhận phục vụ món ăn.', 'error');
+      showToast(err.message || "Không thể xác nhận phục vụ món ăn.", "error");
     }
   };
 
   // Hủy món đang chờ chế biến (POST /api/v1/order-items/{id}/cancel)
   const handleCancelOrderItem = async (orderItemId, itemName) => {
     try {
-      await apiFetch(`/order-items/${orderItemId}/cancel`, { method: 'POST' });
+      await apiFetch(`/order-items/${orderItemId}/cancel`, { method: "POST" });
       await fetchBackendData();
       if (selectedTable) await handleSelectTable(selectedTable);
-      showToast(`Đã hủy món "${itemName}" khỏi đơn hàng.`, 'info');
+      showToast(`Đã hủy món "${itemName}" khỏi đơn hàng.`, "info");
     } catch (err) {
-      showToast(err.message || 'Chỉ có thể hủy món khi bếp chưa bắt đầu chế biến.', 'error');
+      showToast(
+        err.message || "Chỉ có thể hủy món khi bếp chưa bắt đầu chế biến.",
+        "error",
+      );
     }
   };
 
@@ -1240,13 +1388,20 @@ export default function CashierPage() {
     if (!selectedTable?.order?.id) return;
     try {
       await apiFetch(`/orders/${selectedTable.order.id}/request-payment`, {
-        method: 'POST',
+        method: "POST",
       });
       await fetchBackendData();
       await handleSelectTable(selectedTable);
-      showToast(`Đã chuyển bàn ${selectedTable.name} sang trạng thái Chờ thanh toán!`, 'success');
+      showToast(
+        `Đã chuyển bàn ${selectedTable.name} sang trạng thái Chờ thanh toán!`,
+        "success",
+      );
     } catch (err) {
-      showToast(err.message || 'Tất cả món trong đơn phải được phục vụ trước khi yêu cầu thanh toán.', 'error');
+      showToast(
+        err.message ||
+          "Tất cả món trong đơn phải được phục vụ trước khi yêu cầu thanh toán.",
+        "error",
+      );
     }
   };
 
@@ -1254,9 +1409,149 @@ export default function CashierPage() {
   const totalReadyToServeCount = useMemo(() => {
     return tables.reduce((sum, tbl) => {
       const items = tbl.order?.items || [];
-      return sum + items.filter((it) => it.status === 'DONE').length;
+      return sum + items.filter((it) => it.status === "DONE").length;
     }, 0);
   }, [tables]);
+
+  // ==========================================================================
+  // HÀM QUẢN LÝ TÀI KHOẢN DÀNH CHO ADMIN (GET / POST / PUT / DELETE /api/v1/users)
+  // ==========================================================================
+  const fetchAccounts = useCallback(async () => {
+    if (!apiFetch || !isAdmin) return;
+    try {
+      const list = await apiFetch("/users");
+      if (Array.isArray(list)) {
+        setAccountsList(
+          list.map((u) => ({
+            id: String(u.id),
+            username: u.username,
+            fullName: u.fullName || "",
+            role: u.role,
+            active: u.active !== false,
+          })),
+        );
+      }
+    } catch {
+      // Ignored
+    }
+  }, [apiFetch, isAdmin]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchAccounts();
+    }
+  }, [isAdmin, activeTab, fetchAccounts]);
+
+  const filteredAccounts = useMemo(() => {
+    return accountsList.filter((acc) => {
+      const matchRole =
+        accountRoleFilter === "ALL" || acc.role === accountRoleFilter;
+      const q = accountSearchQuery.trim().toLowerCase();
+      const matchSearch =
+        !q ||
+        acc.username.toLowerCase().includes(q) ||
+        (acc.fullName && acc.fullName.toLowerCase().includes(q));
+      return matchRole && matchSearch;
+    });
+  }, [accountsList, accountRoleFilter, accountSearchQuery]);
+
+  const handleCreateAccount = async () => {
+    const username = accountForm.username.trim();
+    const fullName = accountForm.fullName.trim();
+    const password = accountForm.password;
+    if (!username) {
+      showToast("Vui lòng nhập User ID (Tên đăng nhập).", "error");
+      return;
+    }
+    if (!fullName) {
+      showToast("Vui lòng nhập Họ và tên nhân viên.", "error");
+      return;
+    }
+    if (!password || password.length < 12) {
+      showToast("Mật khẩu phải có ít nhất 12 ký tự.", "error");
+      return;
+    }
+
+    try {
+      await apiFetch("/users", {
+        method: "POST",
+        body: JSON.stringify({
+          username,
+          password,
+          fullName,
+          role: accountForm.role,
+        }),
+      });
+      setIsAddAccountOpen(false);
+      await fetchAccounts();
+      showToast(`Đã tạo tài khoản "${username}" (${fullName})!`, "success");
+    } catch (err) {
+      showToast(err.message || "Không thể tạo tài khoản mới.", "error");
+    }
+  };
+
+  const handleUpdateAccount = async () => {
+    if (!selectedAccountForAction?.id) return;
+    const username = accountForm.username.trim();
+    const fullName = accountForm.fullName.trim();
+    const password = accountForm.password;
+    if (!username) {
+      showToast("Vui lòng nhập User ID (Tên đăng nhập).", "error");
+      return;
+    }
+    if (!fullName) {
+      showToast("Vui lòng nhập Họ và tên nhân viên.", "error");
+      return;
+    }
+    if (password && password.length < 12) {
+      showToast("Mật khẩu mới phải có ít nhất 12 ký tự.", "error");
+      return;
+    }
+
+    try {
+      await apiFetch(`/users/${selectedAccountForAction.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          username,
+          fullName,
+          role: accountForm.role,
+          active: accountForm.active,
+          password: password || null,
+        }),
+      });
+      setIsEditAccountOpen(false);
+      await fetchAccounts();
+      if (String(selectedAccountForAction.id) === String(profileUser.id)) {
+        const me = await apiFetch("/auth/me").catch(() => null);
+        if (me) setProfileData(me);
+      }
+      showToast(`Đã cập nhật tài khoản "${username}"!`, "success");
+    } catch (err) {
+      showToast(err.message || "Không thể cập nhật tài khoản.", "error");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!selectedAccountForAction?.id) return;
+    try {
+      await apiFetch(`/users/${selectedAccountForAction.id}`, {
+        method: "DELETE",
+      });
+      setIsDeleteAccountOpen(false);
+      setSelectedAccountForAction(null);
+      await fetchAccounts();
+      showToast(
+        `Đã xóa tài khoản "${selectedAccountForAction.username}"!`,
+        "info",
+      );
+    } catch (err) {
+      setIsDeleteAccountOpen(false);
+      showToast(
+        err.message || "Không thể xóa tài khoản quản trị viên cuối cùng.",
+        "error",
+      );
+    }
+  };
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#FAF7F2] text-slate-800 font-sans select-none">
@@ -1273,7 +1568,7 @@ export default function CashierPage() {
                 alt="ROMS Logo"
                 className="w-full h-full object-contain rounded-md"
                 onError={(e) => {
-                  e.target.style.display = 'none';
+                  e.target.style.display = "none";
                 }}
               />
             </div>
@@ -1281,7 +1576,7 @@ export default function CashierPage() {
               ROMS
             </h1>
             <span className="mt-1 px-2.5 py-0.5 rounded-full bg-orange-50 border border-orange-200/70 text-[10px] font-extrabold text-orange-700 uppercase tracking-wider">
-              {isAdmin ? 'Quản trị viên' : 'Thu ngân'}
+              {isAdmin ? "Quản trị viên" : "Thu ngân"}
             </span>
           </div>
 
@@ -1289,11 +1584,12 @@ export default function CashierPage() {
           <nav className="p-3 space-y-1.5 mt-1">
             {/* Tab Thanh toán: Dành cho cả CASHIER và ADMIN */}
             <button
-              onClick={() => setActiveTab('checkout')}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${activeTab === 'checkout'
-                ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25'
-                : 'text-slate-600 hover:text-orange-600 hover:bg-orange-50/70'
-                }`}
+              onClick={() => setActiveTab("checkout")}
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${
+                activeTab === "checkout"
+                  ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25"
+                  : "text-slate-600 hover:text-orange-600 hover:bg-orange-50/70"
+              }`}
             >
               <CreditCard className="w-5 h-5 shrink-0" />
               <span>Thanh toán</span>
@@ -1303,22 +1599,24 @@ export default function CashierPage() {
             {isAdmin && (
               <>
                 <button
-                  onClick={() => setActiveTab('order')}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${activeTab === 'order'
-                    ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25'
-                    : 'text-slate-600 hover:text-orange-600 hover:bg-orange-50/70'
-                    }`}
+                  onClick={() => setActiveTab("order")}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${
+                    activeTab === "order"
+                      ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25"
+                      : "text-slate-600 hover:text-orange-600 hover:bg-orange-50/70"
+                  }`}
                 >
                   <ClipboardList className="w-5 h-5 shrink-0" />
                   <span>Gọi món</span>
                 </button>
 
                 <button
-                  onClick={() => setActiveTab('tracking')}
-                  className={`w-full flex items-center justify-between px-4 py-2.5 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${activeTab === 'tracking'
-                    ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25'
-                    : 'text-slate-600 hover:text-orange-600 hover:bg-orange-50/70'
-                    }`}
+                  onClick={() => setActiveTab("tracking")}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${
+                    activeTab === "tracking"
+                      ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25"
+                      : "text-slate-600 hover:text-orange-600 hover:bg-orange-50/70"
+                  }`}
                 >
                   <div className="flex items-center gap-3">
                     <BellRing className="w-5 h-5 shrink-0" />
@@ -1326,10 +1624,11 @@ export default function CashierPage() {
                   </div>
                   {totalReadyToServeCount > 0 && (
                     <span
-                      className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${activeTab === 'tracking'
-                        ? 'bg-white text-orange-600'
-                        : 'bg-emerald-500 text-white'
-                        }`}
+                      className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                        activeTab === "tracking"
+                          ? "bg-white text-orange-600"
+                          : "bg-emerald-500 text-white"
+                      }`}
                     >
                       {totalReadyToServeCount}
                     </span>
@@ -1337,36 +1636,51 @@ export default function CashierPage() {
                 </button>
 
                 <button
-                  onClick={() => setActiveTab('menu')}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${activeTab === 'menu'
-                    ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25'
-                    : 'text-slate-600 hover:text-orange-600 hover:bg-orange-50/70'
-                    }`}
+                  onClick={() => setActiveTab("menu")}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${
+                    activeTab === "menu"
+                      ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25"
+                      : "text-slate-600 hover:text-orange-600 hover:bg-orange-50/70"
+                  }`}
                 >
                   <Utensils className="w-5 h-5 shrink-0" />
                   <span>Quản lý Thực đơn</span>
                 </button>
 
                 <button
-                  onClick={() => setActiveTab('tables')}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${activeTab === 'tables'
-                    ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25'
-                    : 'text-slate-600 hover:text-orange-600 hover:bg-orange-50/70'
-                    }`}
+                  onClick={() => setActiveTab("tables")}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${
+                    activeTab === "tables"
+                      ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25"
+                      : "text-slate-600 hover:text-orange-600 hover:bg-orange-50/70"
+                  }`}
                 >
                   <LayoutGrid className="w-5 h-5 shrink-0" />
                   <span>Quản lý Sơ đồ bàn</span>
                 </button>
 
                 <button
-                  onClick={() => setActiveTab('reports')}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${activeTab === 'reports'
-                    ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25'
-                    : 'text-slate-600 hover:text-orange-600 hover:bg-orange-50/70'
-                    }`}
+                  onClick={() => setActiveTab("reports")}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${
+                    activeTab === "reports"
+                      ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25"
+                      : "text-slate-600 hover:text-orange-600 hover:bg-orange-50/70"
+                  }`}
                 >
                   <BarChart3 className="w-5 h-5 shrink-0" />
                   <span>Báo cáo Doanh thu</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("accounts")}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${
+                    activeTab === "accounts"
+                      ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25"
+                      : "text-slate-600 hover:text-orange-600 hover:bg-orange-50/70"
+                  }`}
+                >
+                  <Users className="w-5 h-5 shrink-0" />
+                  <span>Quản lý Tài khoản</span>
                 </button>
               </>
             )}
@@ -1376,11 +1690,12 @@ export default function CashierPage() {
         {/* Cài đặt, Hồ sơ & Đăng xuất */}
         <div className="p-3 border-t border-orange-50 space-y-1.5">
           <button
-            onClick={() => setActiveTab('profile')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${activeTab === 'profile'
-              ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25'
-              : 'text-slate-600 hover:text-orange-600 hover:bg-orange-50/70'
-              }`}
+            onClick={() => setActiveTab("profile")}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-md text-sm font-bold transition-colors duration-150 cursor-pointer ${
+              activeTab === "profile"
+                ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/25"
+                : "text-slate-600 hover:text-orange-600 hover:bg-orange-50/70"
+            }`}
           >
             <User className="w-5 h-5 shrink-0" />
             <span>Hồ sơ</span>
@@ -1396,7 +1711,7 @@ export default function CashierPage() {
           <button
             onClick={() => {
               logout();
-              navigate('/login', { replace: true });
+              navigate("/login", { replace: true });
             }}
             className="w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
           >
@@ -1435,7 +1750,7 @@ export default function CashierPage() {
           {/* ===================================================== */}
           {/* TAB 1: TIẾP NHẬN THANH TOÁN (R-C01, FR-C02)           */}
           {/* ===================================================== */}
-          {activeTab === 'checkout' && (
+          {activeTab === "checkout" && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
                 {/* CỘT TRÁI: SƠ ĐỒ BÀN (CHUẨN HÌNH MẪU 1) */}
@@ -1454,11 +1769,16 @@ export default function CashierPage() {
                     <div className="flex items-center gap-2 sm:gap-3 text-xs">
                       <button
                         type="button"
-                        onClick={() => setTableFilter(tableFilter === 'AVAILABLE' ? 'ALL' : 'AVAILABLE')}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors cursor-pointer ${tableFilter === 'AVAILABLE'
-                          ? 'bg-slate-200/90 text-slate-900 font-bold'
-                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium'
-                          }`}
+                        onClick={() =>
+                          setTableFilter(
+                            tableFilter === "AVAILABLE" ? "ALL" : "AVAILABLE",
+                          )
+                        }
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                          tableFilter === "AVAILABLE"
+                            ? "bg-slate-200/90 text-slate-900 font-bold"
+                            : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium"
+                        }`}
                         title="Lọc bàn trống"
                       >
                         <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
@@ -1467,11 +1787,16 @@ export default function CashierPage() {
 
                       <button
                         type="button"
-                        onClick={() => setTableFilter(tableFilter === 'SERVING' ? 'ALL' : 'SERVING')}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors cursor-pointer ${tableFilter === 'SERVING'
-                          ? 'bg-slate-200/90 text-slate-900 font-bold'
-                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium'
-                          }`}
+                        onClick={() =>
+                          setTableFilter(
+                            tableFilter === "SERVING" ? "ALL" : "SERVING",
+                          )
+                        }
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                          tableFilter === "SERVING"
+                            ? "bg-slate-200/90 text-slate-900 font-bold"
+                            : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium"
+                        }`}
                         title="Lọc bàn đang phục vụ"
                       >
                         <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
@@ -1480,11 +1805,18 @@ export default function CashierPage() {
 
                       <button
                         type="button"
-                        onClick={() => setTableFilter(tableFilter === 'PAYMENT_REQUESTED' ? 'ALL' : 'PAYMENT_REQUESTED')}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors cursor-pointer ${tableFilter === 'PAYMENT_REQUESTED'
-                          ? 'bg-slate-200/90 text-slate-900 font-bold'
-                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium'
-                          }`}
+                        onClick={() =>
+                          setTableFilter(
+                            tableFilter === "PAYMENT_REQUESTED"
+                              ? "ALL"
+                              : "PAYMENT_REQUESTED",
+                          )
+                        }
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                          tableFilter === "PAYMENT_REQUESTED"
+                            ? "bg-slate-200/90 text-slate-900 font-bold"
+                            : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium"
+                        }`}
                         title="Lọc bàn đang thanh toán"
                       >
                         <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
@@ -1497,10 +1829,12 @@ export default function CashierPage() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 p-4 bg-[#FAF7F2]/60 rounded-md border border-orange-100/60 max-h-[calc(100vh-260px)] min-h-[420px] overflow-y-auto pr-2 [scrollbar-gutter:stable] content-start">
                     {filteredTables.length === 0 ? (
                       <div className="col-span-full py-16 flex flex-col items-center justify-center text-slate-400 text-sm">
-                        <p className="font-medium">Không có bàn nào ở trạng thái này</p>
+                        <p className="font-medium">
+                          Không có bàn nào ở trạng thái này
+                        </p>
                         <button
                           type="button"
-                          onClick={() => setTableFilter('ALL')}
+                          onClick={() => setTableFilter("ALL")}
                           className="mt-2 text-xs font-bold text-orange-600 hover:underline cursor-pointer"
                         >
                           Hiển thị tất cả bàn
@@ -1509,32 +1843,38 @@ export default function CashierPage() {
                     ) : (
                       filteredTables.map((tbl) => {
                         const isSelected = tbl.id === selectedTableId;
-                        const isPaying = tbl.status === 'PAYMENT_REQUESTED';
+                        const isPaying = tbl.status === "PAYMENT_REQUESTED";
                         const isServing =
-                          tbl.status === 'OCCUPIED' ||
-                          tbl.status === 'READY_TO_SERVE' ||
-                          tbl.status === 'SERVING';
+                          tbl.status === "OCCUPIED" ||
+                          tbl.status === "READY_TO_SERVE" ||
+                          tbl.status === "SERVING";
 
-                        let tableBg = 'bg-white border-slate-200/90 text-slate-700';
-                        let chairBg = 'bg-emerald-100/70 border border-emerald-200/60';
-                        let statusText = 'Trống';
+                        let tableBg =
+                          "bg-white border-slate-200/90 text-slate-700";
+                        let chairBg =
+                          "bg-emerald-100/70 border border-emerald-200/60";
+                        let statusText = "Trống";
 
                         if (isPaying) {
-                          tableBg = 'bg-[#FFF1F2] border-rose-400 text-rose-950';
-                          chairBg = 'bg-rose-100/90 border border-rose-200/70';
-                          statusText = 'Đang thanh toán';
+                          tableBg =
+                            "bg-[#FFF1F2] border-rose-400 text-rose-950";
+                          chairBg = "bg-rose-100/90 border border-rose-200/70";
+                          statusText = "Đang thanh toán";
                         } else if (isServing) {
-                          tableBg = 'bg-[#FFFDF9] border-orange-200 text-slate-800';
-                          chairBg = 'bg-amber-100/80 border border-amber-200/60';
-                          statusText = 'Đang phục vụ';
+                          tableBg =
+                            "bg-[#FFFDF9] border-orange-200 text-slate-800";
+                          chairBg =
+                            "bg-amber-100/80 border border-amber-200/60";
+                          statusText = "Đang phục vụ";
                         }
 
                         return (
                           <div
                             key={tbl.id}
                             onClick={() => handleSelectTable(tbl)}
-                            className={`relative flex flex-col items-center justify-center cursor-pointer transition-transform duration-150 ${isSelected ? 'scale-105' : 'hover:scale-102'
-                              }`}
+                            className={`relative flex flex-col items-center justify-center cursor-pointer transition-transform duration-150 ${
+                              isSelected ? "scale-105" : "hover:scale-102"
+                            }`}
                           >
                             {/* Chấm tròn thông báo đỏ số 1 như hình mẫu */}
                             {isPaying && (
@@ -1545,22 +1885,38 @@ export default function CashierPage() {
 
                             {/* Khối bàn vuông và 4 ghế nhô ra 4 phía */}
                             <div className="relative w-24 h-24 flex items-center justify-center">
-                              <span className={`w-10 h-3.5 rounded-t-sm absolute -top-1.5 ${chairBg} transition-colors`} />
-                              <span className={`w-10 h-3.5 rounded-b-sm absolute -bottom-1.5 ${chairBg} transition-colors`} />
-                              <span className={`w-3.5 h-10 rounded-l-sm absolute -left-1.5 ${chairBg} transition-colors`} />
-                              <span className={`w-3.5 h-10 rounded-r-sm absolute -right-1.5 ${chairBg} transition-colors`} />
+                              <span
+                                className={`w-10 h-3.5 rounded-t-sm absolute -top-1.5 ${chairBg} transition-colors`}
+                              />
+                              <span
+                                className={`w-10 h-3.5 rounded-b-sm absolute -bottom-1.5 ${chairBg} transition-colors`}
+                              />
+                              <span
+                                className={`w-3.5 h-10 rounded-l-sm absolute -left-1.5 ${chairBg} transition-colors`}
+                              />
+                              <span
+                                className={`w-3.5 h-10 rounded-r-sm absolute -right-1.5 ${chairBg} transition-colors`}
+                              />
 
                               <div
-                                className={`w-20 h-20 rounded-md border-2 ${tableBg} flex flex-col items-center justify-center shadow-xs z-10 transition-colors ${isSelected
-                                  ? (isPaying ? 'border-rose-500 ring-2 ring-rose-400/80 shadow-xs' : 'border-orange-500 ring-2 ring-orange-400/80 shadow-xs')
-                                  : 'hover:border-orange-300'
-                                  }`}
+                                className={`w-20 h-20 rounded-md border-2 ${tableBg} flex flex-col items-center justify-center shadow-xs z-10 transition-colors ${
+                                  isSelected
+                                    ? isPaying
+                                      ? "border-rose-500 ring-2 ring-rose-400/80 shadow-xs"
+                                      : "border-orange-500 ring-2 ring-orange-400/80 shadow-xs"
+                                    : "hover:border-orange-300"
+                                }`}
                               >
                                 <span className="font-extrabold text-base leading-tight text-center">
                                   {tbl.name}
                                 </span>
-                                <span className={`text-[10px] font-bold mt-0.5 text-center leading-tight px-1 w-full block ${isPaying ? 'text-rose-600' : 'text-slate-500'
-                                  }`}>
+                                <span
+                                  className={`text-[10px] font-bold mt-0.5 text-center leading-tight px-1 w-full block ${
+                                    isPaying
+                                      ? "text-rose-600"
+                                      : "text-slate-500"
+                                  }`}
+                                >
                                   {statusText}
                                 </span>
                                 <span className="text-[9px] text-slate-400 font-medium text-center">
@@ -1570,7 +1926,8 @@ export default function CashierPage() {
                             </div>
                           </div>
                         );
-                      }))}
+                      })
+                    )}
                   </div>
                 </div>
 
@@ -1588,14 +1945,16 @@ export default function CashierPage() {
                             Chi tiết đơn hàng
                           </h2>
                           <span className="text-xs text-slate-400 font-medium">
-                            Mã: {selectedTable?.order?.orderCode || 'Chưa có đơn'} • Đã phục vụ: {servedItemsCount}/{totalItemsCount} món
+                            Mã:{" "}
+                            {selectedTable?.order?.orderCode || "Chưa có đơn"}
+                            Đã phục vụ: {servedItemsCount}/{totalItemsCount} món
                           </span>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-2">
                         <span className="px-3 py-1 rounded-md bg-orange-500 text-white font-extrabold text-xs shadow-xs">
-                          Bàn: {selectedTable?.name || 'Chưa chọn'}
+                          Bàn: {selectedTable?.name || "Chưa chọn"}
                         </span>
                       </div>
                     </div>
@@ -1607,7 +1966,9 @@ export default function CashierPage() {
                         <span className="col-span-4">Tên món</span>
                         <span className="col-span-3 text-right pr-6">Giá</span>
                         <span className="col-span-2 text-center">Số lượng</span>
-                        <span className="col-span-3 text-right">Thành tiền</span>
+                        <span className="col-span-3 text-right">
+                          Thành tiền
+                        </span>
                       </div>
 
                       {/* Các dòng món ăn */}
@@ -1624,7 +1985,10 @@ export default function CashierPage() {
                             >
                               <div className="col-span-4 flex items-center gap-2.5 min-w-0 pr-1">
                                 <img
-                                  src={resolveDishImage(item.name, item.image || item.imageUrl)}
+                                  src={resolveDishImage(
+                                    item.name,
+                                    item.image || item.imageUrl,
+                                  )}
                                   onError={handleDishImageError}
                                   alt={item.name}
                                   className="w-10 h-10 rounded-md object-cover border border-slate-100 shrink-0"
@@ -1633,12 +1997,26 @@ export default function CashierPage() {
                                   <span className="font-bold text-slate-800 line-clamp-1">
                                     {item.name}
                                   </span>
-                                  {item.status && (
-                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded inline-block ${item.status === 'SERVED' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                                      }`}>
-                                      {getOrderItemStatusLabel(item.status)}
-                                    </span>
-                                  )}
+                                  <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                                    {item.status && (
+                                      <span
+                                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded inline-block ${
+                                          item.status === "SERVED"
+                                            ? "bg-emerald-50 text-emerald-600"
+                                            : "bg-amber-50 text-amber-600"
+                                        }`}
+                                      >
+                                        {getOrderItemStatusLabel(item.status)}
+                                      </span>
+                                    )}
+                                    {(item.orderedByName || item.cookedByName) && (
+                                      <span className="text-[10px] text-slate-400 font-medium">
+                                        {item.orderedByName ? `Gọi: ${item.orderedByName}` : ""}
+                                        {item.orderedByName && item.cookedByName ? " • " : ""}
+                                        {item.cookedByName ? `Bếp: ${item.cookedByName}` : ""}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                               <span className="col-span-3 text-right pr-6 text-slate-500 font-medium">
@@ -1648,7 +2026,9 @@ export default function CashierPage() {
                                 {item.quantity}
                               </span>
                               <span className="col-span-3 text-right font-black text-slate-900">
-                                {formatCurrency(item.unitPriceVnd * item.quantity)}
+                                {formatCurrency(
+                                  item.unitPriceVnd * item.quantity,
+                                )}
                               </span>
                             </div>
                           ))
@@ -1661,35 +2041,48 @@ export default function CashierPage() {
                   <div className="border-t border-slate-100 pt-3 space-y-2.5">
                     <div className="flex justify-between text-xs sm:text-sm text-slate-600 font-semibold">
                       <span>Tạm tính:</span>
-                      <span className="text-slate-900 font-bold">{formatCurrency(subtotal)}</span>
+                      <span className="text-slate-900 font-bold">
+                        {formatCurrency(subtotal)}
+                      </span>
                     </div>
 
                     {/* Ô nhập giảm giá */}
                     <div className="flex items-center justify-between gap-3 text-xs sm:text-sm">
-                      <span className="text-slate-600 font-semibold">Giảm giá:</span>
+                      <span className="text-slate-600 font-semibold">
+                        Giảm giá:
+                      </span>
                       <div className="flex items-center gap-1.5">
                         <input
                           type="number"
                           min="0"
                           max={subtotal}
                           step="1000"
-                          value={discountVnd === 0 ? '' : discountVnd}
-                          onChange={(e) => setDiscountVnd(Math.max(0, Number(e.target.value) || 0))}
-
+                          value={discountVnd === 0 ? "" : discountVnd}
+                          onChange={(e) =>
+                            setDiscountVnd(
+                              Math.max(0, Number(e.target.value) || 0),
+                            )
+                          }
                           className="w-28 px-2.5 py-1 text-right rounded-md border border-slate-200 text-xs sm:text-sm font-bold text-slate-800 outline-none focus:border-orange-500"
                         />
-                        <span className="text-xs text-slate-400 font-semibold">đ</span>
+                        <span className="text-xs text-slate-400 font-semibold">
+                          đ
+                        </span>
                       </div>
                     </div>
 
                     <div className="flex justify-between text-xs sm:text-sm text-slate-600 font-semibold">
                       <span>VAT (8%):</span>
-                      <span className="text-slate-900 font-bold">{formatCurrency(vatAmount)}</span>
+                      <span className="text-slate-900 font-bold">
+                        {formatCurrency(vatAmount)}
+                      </span>
                     </div>
 
                     <div className="flex justify-between items-center text-sm sm:text-base font-black text-slate-900 pt-2 border-t border-dashed border-slate-200">
                       <span>Tổng cộng:</span>
-                      <span className="text-lg sm:text-xl text-orange-600 font-extrabold">{formatCurrency(grandTotal)}</span>
+                      <span className="text-lg sm:text-xl text-orange-600 font-extrabold">
+                        {formatCurrency(grandTotal)}
+                      </span>
                     </div>
 
                     {/* 3 NÚT BẤM CHUẨN THEO HÌNH MẪU 1: In tạm tính, In hóa đơn, Thanh toán */}
@@ -1706,7 +2099,10 @@ export default function CashierPage() {
                       <button
                         onClick={() => {
                           if (subtotal === 0) return;
-                          if (lastPaidInvoice && lastPaidInvoice.tableName === selectedTable?.name) {
+                          if (
+                            lastPaidInvoice &&
+                            lastPaidInvoice.tableName === selectedTable?.name
+                          ) {
                             setIsOfficialInvoiceOpen(true);
                           } else {
                             handleOpenPaymentModal();
@@ -1737,7 +2133,7 @@ export default function CashierPage() {
           {/* ===================================================== */}
           {/* TAB DÀNH CHO ADMIN: GỌI MÓN (CHỨC NĂNG PHỤC VỤ)        */}
           {/* ===================================================== */}
-          {isAdmin && activeTab === 'order' && (
+          {isAdmin && activeTab === "order" && (
             <div className="space-y-4">
               {/* Sơ đồ bàn chuẩn giao diện Phục vụ */}
               <div className="bg-white rounded-lg p-4 sm:p-5 shadow-xs border border-orange-100/80 space-y-4">
@@ -1757,13 +2153,17 @@ export default function CashierPage() {
                       type="button"
                       onClick={() =>
                         setOrderTableStatusFilter(
-                          orderTableStatusFilter === 'AVAILABLE' ? 'ALL' : 'AVAILABLE'
+                          orderTableStatusFilter === "AVAILABLE"
+                            ? "ALL"
+                            : "AVAILABLE",
                         )
                       }
-                      className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${orderTableStatusFilter !== 'ALL' && orderTableStatusFilter !== 'AVAILABLE'
-                        ? 'opacity-40'
-                        : ''
-                        }`}
+                      className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${
+                        orderTableStatusFilter !== "ALL" &&
+                        orderTableStatusFilter !== "AVAILABLE"
+                          ? "opacity-40"
+                          : ""
+                      }`}
                     >
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
                       <span>Bàn trống</span>
@@ -1773,13 +2173,17 @@ export default function CashierPage() {
                       type="button"
                       onClick={() =>
                         setOrderTableStatusFilter(
-                          orderTableStatusFilter === 'OCCUPIED' ? 'ALL' : 'OCCUPIED'
+                          orderTableStatusFilter === "OCCUPIED"
+                            ? "ALL"
+                            : "OCCUPIED",
                         )
                       }
-                      className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${orderTableStatusFilter !== 'ALL' && orderTableStatusFilter !== 'OCCUPIED'
-                        ? 'opacity-40'
-                        : ''
-                        }`}
+                      className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${
+                        orderTableStatusFilter !== "ALL" &&
+                        orderTableStatusFilter !== "OCCUPIED"
+                          ? "opacity-40"
+                          : ""
+                      }`}
                     >
                       <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
                       <span>Đang có khách</span>
@@ -1789,14 +2193,17 @@ export default function CashierPage() {
                       type="button"
                       onClick={() =>
                         setOrderTableStatusFilter(
-                          orderTableStatusFilter === 'READY_TO_SERVE' ? 'ALL' : 'READY_TO_SERVE'
+                          orderTableStatusFilter === "READY_TO_SERVE"
+                            ? "ALL"
+                            : "READY_TO_SERVE",
                         )
                       }
-                      className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${orderTableStatusFilter !== 'ALL' &&
-                        orderTableStatusFilter !== 'READY_TO_SERVE'
-                        ? 'opacity-40'
-                        : ''
-                        }`}
+                      className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${
+                        orderTableStatusFilter !== "ALL" &&
+                        orderTableStatusFilter !== "READY_TO_SERVE"
+                          ? "opacity-40"
+                          : ""
+                      }`}
                     >
                       <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
                       <span>Chờ mang món</span>
@@ -1809,48 +2216,55 @@ export default function CashierPage() {
                   {tables
                     .filter((tbl) => {
                       const items = tbl.order?.items || [];
-                      const readyCount = items.filter((i) => i.status === 'DONE').length;
+                      const readyCount = items.filter(
+                        (i) => i.status === "DONE",
+                      ).length;
                       const waiterStatus =
-                        readyCount > 0 || tbl.status === 'READY_TO_SERVE'
-                          ? 'READY_TO_SERVE'
-                          : tbl.order || tbl.status !== 'AVAILABLE'
-                            ? 'OCCUPIED'
-                            : 'AVAILABLE';
+                        readyCount > 0 || tbl.status === "READY_TO_SERVE"
+                          ? "READY_TO_SERVE"
+                          : tbl.order || tbl.status !== "AVAILABLE"
+                            ? "OCCUPIED"
+                            : "AVAILABLE";
                       return (
-                        orderTableStatusFilter === 'ALL' || waiterStatus === orderTableStatusFilter
+                        orderTableStatusFilter === "ALL" ||
+                        waiterStatus === orderTableStatusFilter
                       );
                     })
                     .map((tbl) => {
                       const isSelected = tbl.id === selectedTable?.id;
                       const items = tbl.order?.items || [];
-                      const readyCount = items.filter((i) => i.status === 'DONE').length;
-                      const draftCount = (orderCartByTable[tbl.id] || []).reduce(
-                        (s, i) => s + i.quantity,
-                        0
-                      );
-                      const isReadyToServe = readyCount > 0 || tbl.status === 'READY_TO_SERVE';
-                      const isOccupied = !isReadyToServe && (Boolean(tbl.order) || tbl.status !== 'AVAILABLE');
+                      const readyCount = items.filter(
+                        (i) => i.status === "DONE",
+                      ).length;
+                      const draftCount = (
+                        orderCartByTable[tbl.id] || []
+                      ).reduce((s, i) => s + i.quantity, 0);
+                      const isReadyToServe =
+                        readyCount > 0 || tbl.status === "READY_TO_SERVE";
+                      const isOccupied =
+                        !isReadyToServe &&
+                        (Boolean(tbl.order) || tbl.status !== "AVAILABLE");
 
-                      let cardClass = 'bg-[#DCFCE7]';
-                      let iconColor = 'text-emerald-600';
-                      let subColor = 'text-emerald-800 font-medium';
-                      let statusLabel = 'Bàn trống';
-                      let badgeBg = 'bg-emerald-600 text-white';
+                      let cardClass = "bg-[#DCFCE7]";
+                      let iconColor = "text-emerald-600";
+                      let subColor = "text-emerald-800 font-medium";
+                      let statusLabel = "Bàn trống";
+                      let badgeBg = "bg-emerald-600 text-white";
                       let badgeCount = draftCount;
 
                       if (isReadyToServe) {
-                        cardClass = 'bg-[#FDE68A]/70';
-                        iconColor = 'text-amber-600';
-                        subColor = 'text-amber-800 font-semibold';
-                        statusLabel = 'Chờ mang món';
-                        badgeBg = 'bg-orange-500 text-white';
+                        cardClass = "bg-[#FDE68A]/70";
+                        iconColor = "text-amber-600";
+                        subColor = "text-amber-800 font-semibold";
+                        statusLabel = "Chờ mang món";
+                        badgeBg = "bg-orange-500 text-white";
                         badgeCount = readyCount;
                       } else if (isOccupied) {
-                        cardClass = 'bg-[#FECACA]/75';
-                        iconColor = 'text-rose-600';
-                        subColor = 'text-rose-800 font-medium';
-                        statusLabel = 'Đang có khách';
-                        badgeBg = 'bg-rose-500 text-white';
+                        cardClass = "bg-[#FECACA]/75";
+                        iconColor = "text-rose-600";
+                        subColor = "text-rose-800 font-medium";
+                        statusLabel = "Đang có khách";
+                        badgeBg = "bg-rose-500 text-white";
                         badgeCount = items.length;
                       }
 
@@ -1859,10 +2273,11 @@ export default function CashierPage() {
                           key={tbl.id}
                           type="button"
                           onClick={() => handleSelectTable(tbl)}
-                          className={`relative rounded-2xl p-3 flex flex-col items-center justify-center text-center min-h-[88px] transition-all cursor-pointer ${cardClass} ${isSelected
-                            ? 'ring-2 ring-orange-500 shadow-md scale-[1.02]'
-                            : 'hover:scale-[1.01] hover:shadow-xs'
-                            }`}
+                          className={`relative rounded-2xl p-3 flex flex-col items-center justify-center text-center min-h-[88px] transition-all cursor-pointer ${cardClass} ${
+                            isSelected
+                              ? "ring-2 ring-orange-500 shadow-md scale-[1.02]"
+                              : "hover:scale-[1.01] hover:shadow-xs"
+                          }`}
                         >
                           {badgeCount > 0 && (
                             <span
@@ -1871,11 +2286,15 @@ export default function CashierPage() {
                               {badgeCount}
                             </span>
                           )}
-                          <GridTableGlyph className={`w-5 h-5 sm:w-6 sm:h-6 mb-1 ${iconColor}`} />
+                          <GridTableGlyph
+                            className={`w-5 h-5 sm:w-6 sm:h-6 mb-1 ${iconColor}`}
+                          />
                           <span className="text-sm sm:text-base font-extrabold text-slate-900">
                             {tbl.name}
                           </span>
-                          <span className={`text-[11px] sm:text-xs mt-0.5 leading-tight ${subColor}`}>
+                          <span
+                            className={`text-[11px] sm:text-xs mt-0.5 leading-tight ${subColor}`}
+                          >
                             {statusLabel}
                           </span>
                         </button>
@@ -1903,27 +2322,31 @@ export default function CashierPage() {
                     <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none flex-1 min-w-0">
                       <button
                         type="button"
-                        onClick={() => setOrderSelectedCategory('Tất cả')}
-                        className={`px-3 py-1 rounded-md text-xs font-bold border whitespace-nowrap cursor-pointer shrink-0 transition-colors ${orderSelectedCategory === 'Tất cả'
-                          ? 'border-orange-500 bg-orange-500 text-white'
-                          : 'border-slate-200 bg-white text-slate-700 hover:bg-orange-50 hover:text-orange-600'
-                          }`}
+                        onClick={() => setOrderSelectedCategory("Tất cả")}
+                        className={`px-3 py-1 rounded-md text-xs font-bold border whitespace-nowrap cursor-pointer shrink-0 transition-colors ${
+                          orderSelectedCategory === "Tất cả"
+                            ? "border-orange-500 bg-orange-500 text-white"
+                            : "border-slate-200 bg-white text-slate-700 hover:bg-orange-50 hover:text-orange-600"
+                        }`}
                       >
                         Tất cả ({menuItems.length})
                       </button>
                       {categories.map((cat) => {
                         const count = menuItems.filter(
-                          (m) => m.categoryId === cat.id || m.categoryName === cat.name
+                          (m) =>
+                            m.categoryId === cat.id ||
+                            m.categoryName === cat.name,
                         ).length;
                         return (
                           <button
                             key={cat.id || cat.name}
                             type="button"
                             onClick={() => setOrderSelectedCategory(cat.name)}
-                            className={`px-3 py-1 rounded-md text-xs font-bold border whitespace-nowrap cursor-pointer shrink-0 transition-colors ${orderSelectedCategory === cat.name
-                              ? 'border-orange-500 bg-orange-500 text-white'
-                              : 'border-slate-200 bg-white text-slate-700 hover:bg-orange-50 hover:text-orange-600'
-                              }`}
+                            className={`px-3 py-1 rounded-md text-xs font-bold border whitespace-nowrap cursor-pointer shrink-0 transition-colors ${
+                              orderSelectedCategory === cat.name
+                                ? "border-orange-500 bg-orange-500 text-white"
+                                : "border-slate-200 bg-white text-slate-700 hover:bg-orange-50 hover:text-orange-600"
+                            }`}
                           >
                             {cat.name} ({count})
                           </button>
@@ -1941,15 +2364,20 @@ export default function CashierPage() {
                     ) : (
                       filteredOrderMenuItems.map((dish) => {
                         const isAvail = dish.available !== false;
-                        const inCartItem = currentTableCart.find((i) => i.menuItemId === dish.id);
+                        const inCartItem = currentTableCart.find(
+                          (i) => i.menuItemId === dish.id,
+                        );
                         return (
                           <div
                             key={dish.id}
-                            onClick={() => isAvail && handleAddDishToOrderCart(dish)}
-                            className={`relative group rounded-lg border p-2.5 flex flex-col justify-between transition-all ${isAvail
-                              ? 'cursor-pointer bg-white hover:border-orange-400 hover:shadow-xs'
-                              : 'opacity-60 bg-slate-50 cursor-not-allowed border-slate-200'
-                              } ${inCartItem ? 'border-orange-500 ring-1 ring-orange-400 bg-orange-50/20' : 'border-slate-200/80'}`}
+                            onClick={() =>
+                              isAvail && handleAddDishToOrderCart(dish)
+                            }
+                            className={`relative group rounded-lg border p-2.5 flex flex-col justify-between transition-all ${
+                              isAvail
+                                ? "cursor-pointer bg-white hover:border-orange-400 hover:shadow-xs"
+                                : "opacity-60 bg-slate-50 cursor-not-allowed border-slate-200"
+                            } ${inCartItem ? "border-orange-500 ring-1 ring-orange-400 bg-orange-50/20" : "border-slate-200/80"}`}
                           >
                             {!isAvail && (
                               <span className="absolute top-2 right-2 z-10 px-1.5 py-0.5 rounded bg-rose-500 text-white text-[9px] font-bold uppercase">
@@ -1965,10 +2393,13 @@ export default function CashierPage() {
                             <div>
                               <div className="w-full h-24 rounded-md overflow-hidden bg-slate-100 mb-2 border border-orange-100/50">
                                 <img
-                                  src={resolveDishImage(dish.name, dish.imageUrl)}
+                                  src={resolveDishImage(
+                                    dish.name,
+                                    dish.imageUrl,
+                                  )}
                                   alt={dish.name}
                                   onError={handleDishImageError}
-                                  className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${!isAvail ? 'grayscale' : ''}`}
+                                  className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${!isAvail ? "grayscale" : ""}`}
                                 />
                               </div>
                               <h3 className="font-bold text-xs sm:text-sm text-slate-900 line-clamp-1">
@@ -1981,10 +2412,11 @@ export default function CashierPage() {
                                 {formatCurrency(dish.priceVnd)}
                               </span>
                               <span
-                                className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold ${isAvail
-                                  ? 'bg-orange-100 text-orange-600 group-hover:bg-orange-500 group-hover:text-white'
-                                  : 'bg-slate-200 text-slate-400'
-                                  } transition-colors`}
+                                className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-bold ${
+                                  isAvail
+                                    ? "bg-orange-100 text-orange-600 group-hover:bg-orange-500 group-hover:text-white"
+                                    : "bg-slate-200 text-slate-400"
+                                } transition-colors`}
                               >
                                 <Plus className="w-3.5 h-3.5" />
                               </span>
@@ -2010,7 +2442,7 @@ export default function CashierPage() {
                       </div>
 
                       <span className="px-3 py-1 rounded-md bg-orange-500 text-white font-extrabold text-xs">
-                        Bàn: {selectedTable?.name || 'Chưa chọn'}
+                        Bàn: {selectedTable?.name || "Chưa chọn"}
                       </span>
                     </div>
 
@@ -2019,7 +2451,9 @@ export default function CashierPage() {
                       {currentTableCart.length === 0 ? (
                         <div className="py-14 flex flex-col items-center justify-center text-slate-400 text-sm">
                           <Utensils className="w-8 h-8 text-slate-300 mb-1" />
-                          <p className="font-semibold text-slate-500">Chưa có món nào</p>
+                          <p className="font-semibold text-slate-500">
+                            Chưa có món nào
+                          </p>
                         </div>
                       ) : (
                         currentTableCart.map((item) => (
@@ -2027,7 +2461,10 @@ export default function CashierPage() {
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2.5 min-w-0">
                                 <img
-                                  src={resolveDishImage(item.name, item.imageUrl)}
+                                  src={resolveDishImage(
+                                    item.name,
+                                    item.imageUrl,
+                                  )}
                                   onError={handleDishImageError}
                                   alt={item.name}
                                   className="w-10 h-10 rounded-md object-cover border border-slate-100 shrink-0"
@@ -2045,7 +2482,9 @@ export default function CashierPage() {
                               <div className="flex items-center gap-1.5 shrink-0">
                                 <button
                                   type="button"
-                                  onClick={() => handleUpdateCartItemQty(item.menuItemId, -1)}
+                                  onClick={() =>
+                                    handleUpdateCartItemQty(item.menuItemId, -1)
+                                  }
                                   className="w-7 h-7 rounded-md border border-slate-200 hover:bg-slate-100 flex items-center justify-center text-slate-600 cursor-pointer"
                                 >
                                   <Minus className="w-3.5 h-3.5" />
@@ -2055,14 +2494,18 @@ export default function CashierPage() {
                                 </span>
                                 <button
                                   type="button"
-                                  onClick={() => handleUpdateCartItemQty(item.menuItemId, 1)}
+                                  onClick={() =>
+                                    handleUpdateCartItemQty(item.menuItemId, 1)
+                                  }
                                   className="w-7 h-7 rounded-md border border-orange-200 bg-orange-50 hover:bg-orange-100 flex items-center justify-center text-orange-600 cursor-pointer"
                                 >
                                   <Plus className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => handleRemoveCartItem(item.menuItemId)}
+                                  onClick={() =>
+                                    handleRemoveCartItem(item.menuItemId)
+                                  }
                                   className="p-1.5 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer ml-1"
                                   title="Xóa món"
                                 >
@@ -2076,9 +2519,12 @@ export default function CashierPage() {
                               <MessageSquare className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                               <input
                                 type="text"
-                                value={item.note || ''}
+                                value={item.note || ""}
                                 onChange={(e) =>
-                                  handleUpdateCartItemNote(item.menuItemId, e.target.value)
+                                  handleUpdateCartItemNote(
+                                    item.menuItemId,
+                                    e.target.value,
+                                  )
                                 }
                                 aria-label="Ghi chú món"
                                 className="w-full pl-8 pr-3 py-1 rounded-md bg-slate-50 border border-slate-200/80 text-xs text-slate-700 outline-none focus:border-orange-400 focus:bg-white"
@@ -2094,7 +2540,9 @@ export default function CashierPage() {
                   <div className="border-t border-slate-100 pt-3 space-y-3">
                     <div className="flex items-center justify-between text-sm font-bold text-slate-700">
                       <span>
-                        Tổng cộng ({currentTableCart.reduce((s, i) => s + i.quantity, 0)} món):
+                        Tổng cộng (
+                        {currentTableCart.reduce((s, i) => s + i.quantity, 0)}{" "}
+                        món):
                       </span>
                       <span className="text-lg font-extrabold text-orange-600">
                         {formatCurrency(currentCartTotalVnd)}
@@ -2104,12 +2552,14 @@ export default function CashierPage() {
                     <button
                       type="button"
                       onClick={handleSubmitOrderToKitchen}
-                      disabled={currentTableCart.length === 0 || isSubmittingOrder}
+                      disabled={
+                        currentTableCart.length === 0 || isSubmittingOrder
+                      }
                       className="w-full py-3 px-4 rounded-md bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-md shadow-orange-500/25 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <Send className="w-4 h-4" />
                       <span>
-                        {isSubmittingOrder ? 'Đang gửi...' : 'Gửi xuống bếp'}
+                        {isSubmittingOrder ? "Đang gửi..." : "Gửi xuống bếp"}
                       </span>
                     </button>
                   </div>
@@ -2121,7 +2571,7 @@ export default function CashierPage() {
           {/* ===================================================== */}
           {/* TAB DÀNH CHO ADMIN: THEO DÕI MÓN (CHỨC NĂNG PHỤC VỤ)   */}
           {/* ===================================================== */}
-          {isAdmin && activeTab === 'tracking' && (
+          {isAdmin && activeTab === "tracking" && (
             <div className="space-y-4">
               {/* Sơ đồ bàn chuẩn giao diện Phục vụ */}
               <div className="bg-white rounded-lg p-4 sm:p-5 shadow-xs border border-orange-100/80 space-y-4">
@@ -2141,13 +2591,17 @@ export default function CashierPage() {
                       type="button"
                       onClick={() =>
                         setOrderTableStatusFilter(
-                          orderTableStatusFilter === 'AVAILABLE' ? 'ALL' : 'AVAILABLE'
+                          orderTableStatusFilter === "AVAILABLE"
+                            ? "ALL"
+                            : "AVAILABLE",
                         )
                       }
-                      className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${orderTableStatusFilter !== 'ALL' && orderTableStatusFilter !== 'AVAILABLE'
-                        ? 'opacity-40'
-                        : ''
-                        }`}
+                      className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${
+                        orderTableStatusFilter !== "ALL" &&
+                        orderTableStatusFilter !== "AVAILABLE"
+                          ? "opacity-40"
+                          : ""
+                      }`}
                     >
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
                       <span>Bàn trống</span>
@@ -2157,13 +2611,17 @@ export default function CashierPage() {
                       type="button"
                       onClick={() =>
                         setOrderTableStatusFilter(
-                          orderTableStatusFilter === 'OCCUPIED' ? 'ALL' : 'OCCUPIED'
+                          orderTableStatusFilter === "OCCUPIED"
+                            ? "ALL"
+                            : "OCCUPIED",
                         )
                       }
-                      className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${orderTableStatusFilter !== 'ALL' && orderTableStatusFilter !== 'OCCUPIED'
-                        ? 'opacity-40'
-                        : ''
-                        }`}
+                      className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${
+                        orderTableStatusFilter !== "ALL" &&
+                        orderTableStatusFilter !== "OCCUPIED"
+                          ? "opacity-40"
+                          : ""
+                      }`}
                     >
                       <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
                       <span>Đang có khách</span>
@@ -2173,14 +2631,17 @@ export default function CashierPage() {
                       type="button"
                       onClick={() =>
                         setOrderTableStatusFilter(
-                          orderTableStatusFilter === 'READY_TO_SERVE' ? 'ALL' : 'READY_TO_SERVE'
+                          orderTableStatusFilter === "READY_TO_SERVE"
+                            ? "ALL"
+                            : "READY_TO_SERVE",
                         )
                       }
-                      className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${orderTableStatusFilter !== 'ALL' &&
-                        orderTableStatusFilter !== 'READY_TO_SERVE'
-                        ? 'opacity-40'
-                        : ''
-                        }`}
+                      className={`inline-flex items-center gap-1.5 transition-opacity cursor-pointer ${
+                        orderTableStatusFilter !== "ALL" &&
+                        orderTableStatusFilter !== "READY_TO_SERVE"
+                          ? "opacity-40"
+                          : ""
+                      }`}
                     >
                       <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
                       <span>Chờ mang món</span>
@@ -2193,45 +2654,52 @@ export default function CashierPage() {
                   {tables
                     .filter((tbl) => {
                       const items = tbl.order?.items || [];
-                      const readyCount = items.filter((i) => i.status === 'DONE').length;
+                      const readyCount = items.filter(
+                        (i) => i.status === "DONE",
+                      ).length;
                       const waiterStatus =
-                        readyCount > 0 || tbl.status === 'READY_TO_SERVE'
-                          ? 'READY_TO_SERVE'
-                          : tbl.order || tbl.status !== 'AVAILABLE'
-                            ? 'OCCUPIED'
-                            : 'AVAILABLE';
+                        readyCount > 0 || tbl.status === "READY_TO_SERVE"
+                          ? "READY_TO_SERVE"
+                          : tbl.order || tbl.status !== "AVAILABLE"
+                            ? "OCCUPIED"
+                            : "AVAILABLE";
                       return (
-                        orderTableStatusFilter === 'ALL' || waiterStatus === orderTableStatusFilter
+                        orderTableStatusFilter === "ALL" ||
+                        waiterStatus === orderTableStatusFilter
                       );
                     })
                     .map((tbl) => {
                       const isSelected = tbl.id === selectedTable?.id;
                       const items = tbl.order?.items || [];
-                      const readyCount = items.filter((i) => i.status === 'DONE').length;
-                      const isReadyToServe = readyCount > 0 || tbl.status === 'READY_TO_SERVE';
+                      const readyCount = items.filter(
+                        (i) => i.status === "DONE",
+                      ).length;
+                      const isReadyToServe =
+                        readyCount > 0 || tbl.status === "READY_TO_SERVE";
                       const isOccupied =
-                        !isReadyToServe && (Boolean(tbl.order) || tbl.status !== 'AVAILABLE');
+                        !isReadyToServe &&
+                        (Boolean(tbl.order) || tbl.status !== "AVAILABLE");
 
-                      let cardClass = 'bg-[#DCFCE7]';
-                      let iconColor = 'text-emerald-600';
-                      let subColor = 'text-emerald-800 font-medium';
-                      let statusLabel = 'Bàn trống';
-                      let badgeBg = 'bg-emerald-600 text-white';
+                      let cardClass = "bg-[#DCFCE7]";
+                      let iconColor = "text-emerald-600";
+                      let subColor = "text-emerald-800 font-medium";
+                      let statusLabel = "Bàn trống";
+                      let badgeBg = "bg-emerald-600 text-white";
                       let badgeCount = 0;
 
                       if (isReadyToServe) {
-                        cardClass = 'bg-[#FDE68A]/70';
-                        iconColor = 'text-amber-600';
-                        subColor = 'text-amber-800 font-semibold';
-                        statusLabel = 'Chờ mang món';
-                        badgeBg = 'bg-orange-500 text-white';
+                        cardClass = "bg-[#FDE68A]/70";
+                        iconColor = "text-amber-600";
+                        subColor = "text-amber-800 font-semibold";
+                        statusLabel = "Chờ mang món";
+                        badgeBg = "bg-orange-500 text-white";
                         badgeCount = readyCount;
                       } else if (isOccupied) {
-                        cardClass = 'bg-[#FECACA]/75';
-                        iconColor = 'text-rose-600';
-                        subColor = 'text-rose-800 font-medium';
-                        statusLabel = 'Đang có khách';
-                        badgeBg = 'bg-rose-500 text-white';
+                        cardClass = "bg-[#FECACA]/75";
+                        iconColor = "text-rose-600";
+                        subColor = "text-rose-800 font-medium";
+                        statusLabel = "Đang có khách";
+                        badgeBg = "bg-rose-500 text-white";
                         badgeCount = items.length;
                       }
 
@@ -2240,10 +2708,11 @@ export default function CashierPage() {
                           key={tbl.id}
                           type="button"
                           onClick={() => handleSelectTable(tbl)}
-                          className={`relative rounded-2xl p-3 flex flex-col items-center justify-center text-center min-h-[88px] transition-all cursor-pointer ${cardClass} ${isSelected
-                            ? 'ring-2 ring-orange-500 shadow-md scale-[1.02]'
-                            : 'hover:scale-[1.01] hover:shadow-xs'
-                            }`}
+                          className={`relative rounded-2xl p-3 flex flex-col items-center justify-center text-center min-h-[88px] transition-all cursor-pointer ${cardClass} ${
+                            isSelected
+                              ? "ring-2 ring-orange-500 shadow-md scale-[1.02]"
+                              : "hover:scale-[1.01] hover:shadow-xs"
+                          }`}
                         >
                           {badgeCount > 0 && (
                             <span
@@ -2252,7 +2721,9 @@ export default function CashierPage() {
                               {badgeCount}
                             </span>
                           )}
-                          <GridTableGlyph className={`w-5 h-5 sm:w-6 sm:h-6 mb-1 ${iconColor}`} />
+                          <GridTableGlyph
+                            className={`w-5 h-5 sm:w-6 sm:h-6 mb-1 ${iconColor}`}
+                          />
                           <span className="text-sm sm:text-base font-extrabold text-slate-900">
                             {tbl.name}
                           </span>
@@ -2272,44 +2743,45 @@ export default function CashierPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
                   <div className="flex items-center gap-3">
                     <span className="px-3.5 py-1.5 rounded-md bg-orange-500 text-white font-black text-sm">
-                      {selectedTable?.name || 'Chưa chọn bàn'}
+                      {selectedTable?.name || "Chưa chọn bàn"}
                     </span>
                     <h3 className="text-base font-extrabold text-slate-900">
                       {selectedTable?.order
-                        ? `Đơn ${selectedTable.order.orderCode} • Đã phục vụ ${servedItemsCount}/${totalItemsCount} món`
-                        : 'Chưa có đơn hàng'}
+                        ? `Đơn ${selectedTable.order.orderCode}  Đã phục vụ ${servedItemsCount}/${totalItemsCount} món`
+                        : "Chưa có đơn hàng"}
                     </h3>
                   </div>
 
                   {/* Bộ lọc trạng thái món trong đơn + nút Gọi thêm món / Thanh toán */}
                   <div className="flex flex-wrap items-center gap-1.5">
                     {[
-                      { key: 'ALL', label: `Tất cả (${orderItems.length})` },
+                      { key: "ALL", label: `Tất cả (${orderItems.length})` },
                       {
-                        key: 'DONE',
-                        label: `Chờ phục vụ (${orderItems.filter((i) => i.status === 'DONE').length})`,
+                        key: "DONE",
+                        label: `Chờ phục vụ (${orderItems.filter((i) => i.status === "DONE").length})`,
                       },
                       {
-                        key: 'COOKING',
-                        label: `Đang nấu (${orderItems.filter((i) => i.status === 'COOKING').length})`,
+                        key: "COOKING",
+                        label: `Đang nấu (${orderItems.filter((i) => i.status === "COOKING").length})`,
                       },
                       {
-                        key: 'PENDING',
-                        label: `Chờ bếp (${orderItems.filter((i) => i.status === 'PENDING').length})`,
+                        key: "PENDING",
+                        label: `Chờ bếp (${orderItems.filter((i) => i.status === "PENDING").length})`,
                       },
                       {
-                        key: 'SERVED',
-                        label: `Đã phục vụ (${orderItems.filter((i) => i.status === 'SERVED').length})`,
+                        key: "SERVED",
+                        label: `Đã phục vụ (${orderItems.filter((i) => i.status === "SERVED").length})`,
                       },
                     ].map((f) => (
                       <button
                         key={f.key}
                         type="button"
                         onClick={() => setTrackingStatusFilter(f.key)}
-                        className={`px-3 py-1.5 rounded-md text-xs font-bold border transition-colors cursor-pointer ${trackingStatusFilter === f.key
-                          ? 'bg-orange-500 border-orange-500 text-white'
-                          : 'bg-white border-slate-200 text-slate-600 hover:bg-orange-50'
-                          }`}
+                        className={`px-3 py-1.5 rounded-md text-xs font-bold border transition-colors cursor-pointer ${
+                          trackingStatusFilter === f.key
+                            ? "bg-orange-500 border-orange-500 text-white"
+                            : "bg-white border-slate-200 text-slate-600 hover:bg-orange-50"
+                        }`}
                       >
                         {f.label}
                       </button>
@@ -2317,7 +2789,7 @@ export default function CashierPage() {
 
                     <button
                       type="button"
-                      onClick={() => setActiveTab('order')}
+                      onClick={() => setActiveTab("order")}
                       className="ml-1 px-3 py-1.5 rounded-md bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
@@ -2327,7 +2799,7 @@ export default function CashierPage() {
                     {selectedTable?.order && (
                       <button
                         type="button"
-                        onClick={() => setActiveTab('checkout')}
+                        onClick={() => setActiveTab("checkout")}
                         className="px-3 py-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
                       >
                         <CreditCard className="w-3.5 h-3.5 text-orange-500" />
@@ -2348,25 +2820,27 @@ export default function CashierPage() {
                     {orderItems
                       .filter(
                         (it) =>
-                          trackingStatusFilter === 'ALL' || it.status === trackingStatusFilter
+                          trackingStatusFilter === "ALL" ||
+                          it.status === trackingStatusFilter,
                       )
                       .map((item) => {
-                        const isDone = item.status === 'DONE';
-                        const isPending = item.status === 'PENDING';
-                        const isCooking = item.status === 'COOKING';
-                        const isServed = item.status === 'SERVED';
+                        const isDone = item.status === "DONE";
+                        const isPending = item.status === "PENDING";
+                        const isCooking = item.status === "COOKING";
+                        const isServed = item.status === "SERVED";
 
                         return (
                           <div
                             key={item.id}
-                            className={`p-3.5 rounded-lg border flex items-center justify-between gap-3 transition-all ${isDone
-                              ? 'bg-emerald-50/70 border-emerald-400 shadow-xs'
-                              : isCooking
-                                ? 'bg-blue-50/40 border-blue-200'
-                                : isPending
-                                  ? 'bg-amber-50/40 border-amber-200'
-                                  : 'bg-slate-50/60 border-slate-200/80'
-                              }`}
+                            className={`p-3.5 rounded-lg border flex items-center justify-between gap-3 transition-all ${
+                              isDone
+                                ? "bg-emerald-50/70 border-emerald-400 shadow-xs"
+                                : isCooking
+                                  ? "bg-blue-50/40 border-blue-200"
+                                  : isPending
+                                    ? "bg-amber-50/40 border-amber-200"
+                                    : "bg-slate-50/60 border-slate-200/80"
+                            }`}
                           >
                             <div className="flex items-center gap-3 min-w-0">
                               <img
@@ -2394,21 +2868,34 @@ export default function CashierPage() {
                                   </p>
                                 )}
 
+                                {(item.orderedByName || item.cookedByName || item.servedByName) && (
+                                  <p className="text-[11px] text-slate-500 font-semibold">
+                                    {item.orderedByName ? `Phục vụ gọi: ${item.orderedByName}` : ""}
+                                    {item.orderedByName && item.cookedByName ? " • " : ""}
+                                    {item.cookedByName ? `Bếp: ${item.cookedByName}` : ""}
+                                    {(item.orderedByName || item.cookedByName) && item.servedByName ? " • " : ""}
+                                    {item.servedByName ? `Bưng món: ${item.servedByName}` : ""}
+                                  </p>
+                                )}
+
                                 <div className="flex items-center gap-2">
                                   <span
-                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold ${isDone
-                                      ? 'bg-emerald-500 text-white'
-                                      : isCooking
-                                        ? 'bg-blue-100 text-blue-700'
-                                        : isPending
-                                          ? 'bg-amber-100 text-amber-800'
-                                          : 'bg-emerald-100 text-emerald-700'
-                                      }`}
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold ${
+                                      isDone
+                                        ? "bg-emerald-500 text-white"
+                                        : isCooking
+                                          ? "bg-blue-100 text-blue-700"
+                                          : isPending
+                                            ? "bg-amber-100 text-amber-800"
+                                            : "bg-emerald-100 text-emerald-700"
+                                    }`}
                                   >
                                     {getOrderItemStatusLabel(item.status)}
                                   </span>
                                   <span className="text-xs font-bold text-slate-500">
-                                    {formatCurrency(item.unitPriceVnd * item.quantity)}
+                                    {formatCurrency(
+                                      item.unitPriceVnd * item.quantity,
+                                    )}
                                   </span>
                                 </div>
                               </div>
@@ -2419,7 +2906,9 @@ export default function CashierPage() {
                               {isDone && (
                                 <button
                                   type="button"
-                                  onClick={() => handleServeOrderItem(item.id, item.name)}
+                                  onClick={() =>
+                                    handleServeOrderItem(item.id, item.name)
+                                  }
                                   className="px-3.5 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
                                 >
                                   <CheckCircle2 className="w-4 h-4" />
@@ -2430,7 +2919,9 @@ export default function CashierPage() {
                               {isPending && (
                                 <button
                                   type="button"
-                                  onClick={() => handleCancelOrderItem(item.id, item.name)}
+                                  onClick={() =>
+                                    handleCancelOrderItem(item.id, item.name)
+                                  }
                                   className="px-3 py-2 rounded-md bg-white border border-rose-200 hover:bg-rose-50 text-rose-600 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
                                 >
                                   <Ban className="w-3.5 h-3.5" />
@@ -2454,14 +2945,14 @@ export default function CashierPage() {
                 {selectedTable?.order && totalItemsCount > 0 && (
                   <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
                     <div className="text-xs sm:text-sm font-semibold text-slate-600">
-                      Tạm tính:{' '}
+                      Tạm tính:{" "}
                       <strong className="text-base font-black text-orange-600">
                         {formatCurrency(subtotal)}
                       </strong>
                     </div>
 
                     <div className="flex items-center gap-2.5">
-                      {selectedTable.order.status !== 'PAYMENT_REQUESTED' &&
+                      {selectedTable.order.status !== "PAYMENT_REQUESTED" &&
                         servedItemsCount === totalItemsCount && (
                           <button
                             type="button"
@@ -2482,7 +2973,7 @@ export default function CashierPage() {
           {/* ===================================================== */}
           {/* TAB 2: QUẢN LÝ THỰC ĐƠN (FR-C03 - CHỈ ADMIN)          */}
           {/* ===================================================== */}
-          {isAdmin && activeTab === 'menu' && (
+          {isAdmin && activeTab === "menu" && (
             <div className="bg-white rounded-lg p-3.5 sm:p-4 shadow-xs border border-orange-100/80 space-y-3">
               {/* Tiêu đề & Nút Thêm món ăn mới */}
               <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2 border-b border-slate-100">
@@ -2494,18 +2985,17 @@ export default function CashierPage() {
                     <h2 className="text-base sm:text-lg font-extrabold text-slate-900 leading-tight">
                       Quản lý Thực đơn
                     </h2>
-
                   </div>
                 </div>
 
                 <button
                   onClick={() => {
                     setDishForm({
-                      name: '',
-                      categoryId: categories[0]?.id || 'cat-1',
-                      priceVnd: '',
-                      imageUrl: '',
-                      description: '',
+                      name: "",
+                      categoryId: categories[0]?.id || "cat-1",
+                      priceVnd: "",
+                      imageUrl: "",
+                      description: "",
                     });
                     setIsAddDishOpen(true);
                   }}
@@ -2527,7 +3017,6 @@ export default function CashierPage() {
                       setSearchQuery(e.target.value);
                       setCurrentPage(1);
                     }}
-
                     aria-label="Tìm kiếm món ăn"
                     className="w-full pl-9 pr-3 py-1.5 rounded-md border border-slate-200 text-xs sm:text-sm font-medium outline-none focus:border-orange-500 bg-white"
                   />
@@ -2537,18 +3026,22 @@ export default function CashierPage() {
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none flex-1 min-w-0">
                   <button
                     onClick={() => {
-                      setSelectedCategory('Tất cả');
+                      setSelectedCategory("Tất cả");
                       setCurrentPage(1);
                     }}
-                    className={`px-3 py-1 rounded-md text-xs sm:text-sm font-bold border whitespace-nowrap cursor-pointer shrink-0 transition-colors duration-150 ${selectedCategory === 'Tất cả'
-                      ? 'border-orange-500 bg-orange-500 text-white shadow-xs'
-                      : 'border-slate-200/90 bg-white text-slate-700 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200'
-                      }`}
+                    className={`px-3 py-1 rounded-md text-xs sm:text-sm font-bold border whitespace-nowrap cursor-pointer shrink-0 transition-colors duration-150 ${
+                      selectedCategory === "Tất cả"
+                        ? "border-orange-500 bg-orange-500 text-white shadow-xs"
+                        : "border-slate-200/90 bg-white text-slate-700 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200"
+                    }`}
                   >
                     Tất cả ({menuItems.length})
                   </button>
                   {categories.map((cat) => {
-                    const count = menuItems.filter((m) => m.categoryId === cat.id || m.categoryName === cat.name).length;
+                    const count = menuItems.filter(
+                      (m) =>
+                        m.categoryId === cat.id || m.categoryName === cat.name,
+                    ).length;
                     return (
                       <button
                         key={cat.id || cat.name}
@@ -2556,10 +3049,11 @@ export default function CashierPage() {
                           setSelectedCategory(cat.name);
                           setCurrentPage(1);
                         }}
-                        className={`px-3 py-1 rounded-md text-xs sm:text-sm font-bold border whitespace-nowrap cursor-pointer shrink-0 transition-colors duration-150 ${selectedCategory === cat.name
-                          ? 'border-orange-500 bg-orange-500 text-white shadow-xs'
-                          : 'border-slate-200/90 bg-white text-slate-700 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200'
-                          }`}
+                        className={`px-3 py-1 rounded-md text-xs sm:text-sm font-bold border whitespace-nowrap cursor-pointer shrink-0 transition-colors duration-150 ${
+                          selectedCategory === cat.name
+                            ? "border-orange-500 bg-orange-500 text-white shadow-xs"
+                            : "border-slate-200/90 bg-white text-slate-700 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200"
+                        }`}
                       >
                         {cat.name} ({count})
                       </button>
@@ -2580,10 +3074,11 @@ export default function CashierPage() {
                         <div
                           key={item.id}
                           onClick={() => setSelectedMenuId(item.id)}
-                          className={`relative group p-2 sm:p-2.5 rounded-lg border-2 transition-all duration-150 cursor-pointer flex flex-col items-center text-center justify-center ${isSelected
-                            ? 'border-orange-500 bg-orange-50/40 shadow-xs'
-                            : 'border-slate-100 bg-white hover:border-orange-300 hover:shadow-xs'
-                            } ${!isAvailable ? 'opacity-70 bg-slate-50/80' : ''}`}
+                          className={`relative group p-2 sm:p-2.5 rounded-lg border-2 transition-all duration-150 cursor-pointer flex flex-col items-center text-center justify-center ${
+                            isSelected
+                              ? "border-orange-500 bg-orange-50/40 shadow-xs"
+                              : "border-slate-100 bg-white hover:border-orange-300 hover:shadow-xs"
+                          } ${!isAvailable ? "opacity-70 bg-slate-50/80" : ""}`}
                         >
                           {/* Huy hiệu Hết hàng */}
                           {!isAvailable && (
@@ -2597,7 +3092,7 @@ export default function CashierPage() {
                               src={resolveDishImage(item.name, item.imageUrl)}
                               alt={item.name}
                               onError={handleDishImageError}
-                              className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${!isAvailable ? 'grayscale' : ''}`}
+                              className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${!isAvailable ? "grayscale" : ""}`}
                             />
                           </div>
                           <h3 className="font-bold text-xs sm:text-sm text-slate-900 line-clamp-1 leading-tight mb-0.5">
@@ -2614,13 +3109,16 @@ export default function CashierPage() {
                   {/* Thanh phân trang & Nút Toggle hết hàng / Sửa / Xóa */}
                   <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-slate-100">
                     <div className="hidden sm:block text-[11px] font-semibold text-slate-400">
-                      Hiển thị {paginatedMenuItems.length} / {filteredMenuItems.length} món (3 hàng)
+                      Hiển thị {paginatedMenuItems.length} /{" "}
+                      {filteredMenuItems.length} món (3 hàng)
                     </div>
 
                     {/* Phân trang: < 1 2 3 > */}
                     <div className="flex items-center gap-1 mx-auto sm:mx-0">
                       <button
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        onClick={() =>
+                          setCurrentPage((p) => Math.max(1, p - 1))
+                        }
                         disabled={currentPage === 1}
                         className="w-7 h-7 rounded-md border border-slate-200 flex items-center justify-center text-xs text-slate-600 hover:bg-orange-50 disabled:opacity-40 cursor-pointer"
                       >
@@ -2632,17 +3130,20 @@ export default function CashierPage() {
                           <button
                             key={p}
                             onClick={() => setCurrentPage(p)}
-                            className={`w-7 h-7 rounded-md text-xs font-bold cursor-pointer transition-colors ${currentPage === p
-                              ? 'bg-orange-500 text-white'
-                              : 'border border-slate-200 text-slate-600 hover:bg-orange-50'
-                              }`}
+                            className={`w-7 h-7 rounded-md text-xs font-bold cursor-pointer transition-colors ${
+                              currentPage === p
+                                ? "bg-orange-500 text-white"
+                                : "border border-slate-200 text-slate-600 hover:bg-orange-50"
+                            }`}
                           >
                             {p}
                           </button>
                         );
                       })}
                       <button
-                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        onClick={() =>
+                          setCurrentPage((p) => Math.min(totalPages, p + 1))
+                        }
                         disabled={currentPage === totalPages}
                         className="w-7 h-7 rounded-md border border-slate-200 flex items-center justify-center text-xs text-slate-600 hover:bg-orange-50 disabled:opacity-40 cursor-pointer"
                       >
@@ -2653,33 +3154,48 @@ export default function CashierPage() {
                     {/* Nút Toggle hết hàng & Sửa & Xóa món ăn */}
                     <div className="flex items-center gap-2">
                       {(() => {
-                        const selItem = menuItems.find((m) => m.id === selectedMenuId);
+                        const selItem = menuItems.find(
+                          (m) => m.id === selectedMenuId,
+                        );
                         const isAvail = selItem?.available !== false;
                         return (
                           <button
-                            onClick={() => handleToggleAvailability(selectedMenuId)}
-                            className={`px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer ${isAvail
-                              ? 'bg-amber-100 hover:bg-amber-200 text-amber-900'
-                              : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-900'
-                              }`}
-                            title={isAvail ? 'Đánh dấu món này là Hết hàng' : 'Mở bán lại món này'}
+                            onClick={() =>
+                              handleToggleAvailability(selectedMenuId)
+                            }
+                            className={`px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer ${
+                              isAvail
+                                ? "bg-amber-100 hover:bg-amber-200 text-amber-900"
+                                : "bg-emerald-100 hover:bg-emerald-200 text-emerald-900"
+                            }`}
+                            title={
+                              isAvail
+                                ? "Đánh dấu món này là Hết hàng"
+                                : "Mở bán lại món này"
+                            }
                           >
-                            <span className={`w-2 h-2 rounded-full ${isAvail ? 'bg-amber-600' : 'bg-emerald-600'}`} />
-                            <span>{isAvail ? 'Báo hết hàng' : 'Báo còn món'}</span>
+                            <span
+                              className={`w-2 h-2 rounded-full ${isAvail ? "bg-amber-600" : "bg-emerald-600"}`}
+                            />
+                            <span>
+                              {isAvail ? "Báo hết hàng" : "Báo còn món"}
+                            </span>
                           </button>
                         );
                       })()}
 
                       <button
                         onClick={() => {
-                          const item = menuItems.find((m) => m.id === selectedMenuId);
+                          const item = menuItems.find(
+                            (m) => m.id === selectedMenuId,
+                          );
                           if (item) {
                             setDishForm({
                               name: item.name,
                               categoryId: item.categoryId,
                               priceVnd: String(item.priceVnd),
                               imageUrl: item.imageUrl,
-                              description: item.description || '',
+                              description: item.description || "",
                             });
                             setIsEditDishOpen(true);
                           }
@@ -2708,7 +3224,7 @@ export default function CashierPage() {
                     </h3>
                     <button
                       onClick={() => {
-                        setCategoryForm({ id: '', name: '' });
+                        setCategoryForm({ id: "", name: "" });
                         setIsAddCategoryOpen(true);
                       }}
                       className="px-2 py-0.5 rounded-md bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
@@ -2722,32 +3238,40 @@ export default function CashierPage() {
                   <div className="space-y-1 overflow-y-auto flex-1 pr-0.5">
                     <button
                       onClick={() => {
-                        setSelectedCategory('Tất cả');
+                        setSelectedCategory("Tất cả");
                         setCurrentPage(1);
                       }}
-                      className={`w-full py-1.5 px-2.5 rounded-md flex items-center justify-between text-xs transition-colors cursor-pointer border ${selectedCategory === 'Tất cả'
-                        ? 'bg-[#FFF3E8] border-orange-200/90 text-orange-600 font-bold shadow-xs'
-                        : 'text-slate-700 hover:bg-slate-50 font-semibold border-transparent'
-                        }`}
+                      className={`w-full py-1.5 px-2.5 rounded-md flex items-center justify-between text-xs transition-colors cursor-pointer border ${
+                        selectedCategory === "Tất cả"
+                          ? "bg-[#FFF3E8] border-orange-200/90 text-orange-600 font-bold shadow-xs"
+                          : "text-slate-700 hover:bg-slate-50 font-semibold border-transparent"
+                      }`}
                     >
                       <div className="flex items-center gap-2 truncate">
                         <Utensils className="w-3.5 h-3.5 text-orange-600 shrink-0" />
                         <span className="truncate">Tất cả món</span>
                       </div>
-                      <span className="text-[11px] text-slate-400 font-bold shrink-0">{menuItems.length}</span>
+                      <span className="text-[11px] text-slate-400 font-bold shrink-0">
+                        {menuItems.length}
+                      </span>
                     </button>
 
                     {categories.map((cat) => {
                       const isCatActive = selectedCategory === cat.name;
                       const IconComp = cat.icon || Utensils;
-                      const count = menuItems.filter((m) => m.categoryId === cat.id || m.categoryName === cat.name).length;
+                      const count = menuItems.filter(
+                        (m) =>
+                          m.categoryId === cat.id ||
+                          m.categoryName === cat.name,
+                      ).length;
                       return (
                         <div
                           key={cat.id || cat.name}
-                          className={`group w-full py-1 px-2 rounded-md flex items-center justify-between transition-colors border ${isCatActive
-                            ? 'bg-[#FFF3E8] border-orange-200/90 text-orange-600 font-bold shadow-xs'
-                            : 'hover:bg-slate-50 border-transparent text-slate-700'
-                            }`}
+                          className={`group w-full py-1 px-2 rounded-md flex items-center justify-between transition-colors border ${
+                            isCatActive
+                              ? "bg-[#FFF3E8] border-orange-200/90 text-orange-600 font-bold shadow-xs"
+                              : "hover:bg-slate-50 border-transparent text-slate-700"
+                          }`}
                         >
                           <button
                             onClick={() => {
@@ -2801,7 +3325,7 @@ export default function CashierPage() {
           {/* ===================================================== */}
           {/* TAB 3: QUẢN LÝ SƠ ĐỒ BÀN (FR-C04 - CHỈ ADMIN)          */}
           {/* ===================================================== */}
-          {isAdmin && activeTab === 'tables' && (
+          {isAdmin && activeTab === "tables" && (
             <div className="bg-white rounded-lg p-5 lg:p-6 shadow-xs border border-orange-100/80 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-3">
@@ -2810,16 +3334,17 @@ export default function CashierPage() {
                   </div>
                   <div>
                     <h2 className="text-lg lg:text-xl font-extrabold text-slate-900">
-                      Quản lý Sơ đồ bàn </h2>
-                    <p className="text-xs text-slate-400">
-                      Tổng số: <strong className="text-slate-700 font-bold">{tables.length} bàn</strong> • Thêm bàn mới, sửa tên bàn, sửa số lượng ghế (sức chứa) và xóa bàn
-                    </p>
+                      Quản lý Sơ đồ bàn{" "}
+                    </h2>
                   </div>
                 </div>
 
                 <button
                   onClick={() => {
-                    setNewTableForm({ name: `T${tables.length + 1}`, capacity: 4 });
+                    setNewTableForm({
+                      name: `T${tables.length + 1}`,
+                      capacity: 4,
+                    });
                     setIsAddTableOpen(true);
                   }}
                   className="px-4 py-2.5 rounded-md bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-sm flex items-center gap-2 shadow-sm transition-colors cursor-pointer"
@@ -2837,7 +3362,6 @@ export default function CashierPage() {
                     type="text"
                     value={tableSearchQuery}
                     onChange={(e) => setTableSearchQuery(e.target.value)}
-
                     aria-label="Tìm kiếm bàn"
                     className="w-full pl-9 pr-3 py-1.5 rounded-md border border-slate-200 text-xs sm:text-sm font-medium outline-none focus:border-orange-500 bg-white"
                   />
@@ -2846,11 +3370,12 @@ export default function CashierPage() {
                 {/* Các pill lọc theo số chỗ ngồi kèm số lượng bàn từng loại */}
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none flex-1 min-w-0">
                   <button
-                    onClick={() => setTableCapacityFilter('ALL')}
-                    className={`px-3 py-1 rounded-md text-xs sm:text-sm font-bold border whitespace-nowrap cursor-pointer shrink-0 transition-colors duration-150 ${tableCapacityFilter === 'ALL'
-                      ? 'border-orange-500 bg-orange-500 text-white shadow-xs'
-                      : 'border-slate-200/90 bg-white text-slate-700 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200'
-                      }`}
+                    onClick={() => setTableCapacityFilter("ALL")}
+                    className={`px-3 py-1 rounded-md text-xs sm:text-sm font-bold border whitespace-nowrap cursor-pointer shrink-0 transition-colors duration-150 ${
+                      tableCapacityFilter === "ALL"
+                        ? "border-orange-500 bg-orange-500 text-white shadow-xs"
+                        : "border-slate-200/90 bg-white text-slate-700 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200"
+                    }`}
                   >
                     Tất cả ({tables.length})
                   </button>
@@ -2858,10 +3383,11 @@ export default function CashierPage() {
                     <button
                       key={capacity}
                       onClick={() => setTableCapacityFilter(capacity)}
-                      className={`px-3 py-1 rounded-md text-xs sm:text-sm font-bold border whitespace-nowrap cursor-pointer shrink-0 transition-colors duration-150 ${tableCapacityFilter === capacity
-                        ? 'border-orange-500 bg-orange-500 text-white shadow-xs'
-                        : 'border-slate-200/90 bg-white text-slate-700 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200'
-                        }`}
+                      className={`px-3 py-1 rounded-md text-xs sm:text-sm font-bold border whitespace-nowrap cursor-pointer shrink-0 transition-colors duration-150 ${
+                        tableCapacityFilter === capacity
+                          ? "border-orange-500 bg-orange-500 text-white shadow-xs"
+                          : "border-slate-200/90 bg-white text-slate-700 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200"
+                      }`}
                     >
                       Bàn {capacity} chỗ ({count})
                     </button>
@@ -2872,24 +3398,16 @@ export default function CashierPage() {
               {/* Bố cục 2 cột: Trái là Sơ đồ bàn ghế (cuộn riêng), Phải là Panel Thông tin bàn (Ghim cố định) */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 <div className="lg:col-span-8 bg-[#FAF7F2]/60 rounded-lg border border-orange-100/60 p-4">
-                  <div className="flex items-center justify-between pb-2 mb-3 border-b border-orange-100/60 text-xs font-semibold text-slate-500">
-                    <span>
-                      Hiển thị <strong>{filteredManagementTables.length}</strong> / <strong>{tables.length}</strong> bàn
-                      {tableCapacityFilter !== 'ALL' && ` (Loại ${tableCapacityFilter} chỗ)`}
-                    </span>
-                    {tables.length > 8 && (
-                      <span className="text-[11px] text-slate-400">Cuộn để xem tiếp các bàn khác</span>
-                    )}
-                  </div>
-
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 max-h-[calc(100vh-310px)] min-h-[380px] overflow-y-auto pr-2 [scrollbar-gutter:stable] content-start">
                     {filteredManagementTables.length === 0 ? (
                       <div className="col-span-full py-16 flex flex-col items-center justify-center text-slate-400 text-sm">
-                        <p className="font-semibold text-slate-600">Không tìm thấy bàn nào phù hợp với bộ lọc</p>
+                        <p className="font-semibold text-slate-600">
+                          Không tìm thấy bàn nào phù hợp với bộ lọc
+                        </p>
                         <button
                           onClick={() => {
-                            setTableCapacityFilter('ALL');
-                            setTableSearchQuery('');
+                            setTableCapacityFilter("ALL");
+                            setTableSearchQuery("");
                           }}
                           className="mt-2 text-xs font-bold text-orange-600 hover:underline cursor-pointer"
                         >
@@ -2904,8 +3422,9 @@ export default function CashierPage() {
                           <div
                             key={tbl.id}
                             onClick={() => handleSelectTableForEdit(tbl)}
-                            className={`flex flex-col items-center justify-center cursor-pointer transition-transform duration-150 ${isSelected ? 'scale-105' : 'hover:scale-102'
-                              }`}
+                            className={`flex flex-col items-center justify-center cursor-pointer transition-transform duration-150 ${
+                              isSelected ? "scale-105" : "hover:scale-102"
+                            }`}
                           >
                             {/* Hình khối bàn ghế tiêu chuẩn cấu trúc mặt bằng (Không trạng thái phục vụ) */}
                             <div className="relative w-24 h-24 flex items-center justify-center">
@@ -2915,10 +3434,11 @@ export default function CashierPage() {
                               <span className="w-3.5 h-10 rounded-r-sm absolute -right-1.5 bg-orange-100/90 border border-orange-200/60" />
 
                               <div
-                                className={`w-20 h-20 rounded-md border-2 flex flex-col items-center justify-center shadow-xs z-10 transition-colors ${isSelected
-                                  ? 'bg-orange-50/90 border-orange-500 ring-2 ring-orange-400 text-slate-900 shadow-sm'
-                                  : 'bg-white border-slate-200/90 text-slate-800 hover:border-orange-300 hover:bg-orange-50/20'
-                                  }`}
+                                className={`w-20 h-20 rounded-md border-2 flex flex-col items-center justify-center shadow-xs z-10 transition-colors ${
+                                  isSelected
+                                    ? "bg-orange-50/90 border-orange-500 ring-2 ring-orange-400 text-slate-900 shadow-sm"
+                                    : "bg-white border-slate-200/90 text-slate-800 hover:border-orange-300 hover:bg-orange-50/20"
+                                }`}
                               >
                                 <span className="font-extrabold text-base leading-tight text-slate-900">
                                   {tbl.name}
@@ -2972,7 +3492,11 @@ export default function CashierPage() {
                         min="1"
                         max="30"
                         value={editingTableCapacity}
-                        onChange={(e) => setEditingTableCapacity(Math.max(1, Number(e.target.value) || 1))}
+                        onChange={(e) =>
+                          setEditingTableCapacity(
+                            Math.max(1, Number(e.target.value) || 1),
+                          )
+                        }
                         className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-bold text-slate-800 outline-none focus:border-orange-500 bg-white"
                       />
                     </div>
@@ -2987,7 +3511,9 @@ export default function CashierPage() {
                       </button>
                       <button
                         onClick={() => {
-                          const current = tables.find((t) => t.id === editingTableId);
+                          const current = tables.find(
+                            (t) => t.id === editingTableId,
+                          );
                           if (current) {
                             setEditingTableName(current.name);
                             setEditingTableCapacity(current.capacity || 4);
@@ -3007,7 +3533,7 @@ export default function CashierPage() {
           {/* ===================================================== */}
           {/* TAB 4: BÁO CÁO DOANH THU (FR-C05 - CHỈ ADMIN)         */}
           {/* ===================================================== */}
-          {isAdmin && activeTab === 'reports' && (
+          {isAdmin && activeTab === "reports" && (
             <div className="space-y-6">
               {/* Header & Bộ lọc thời gian chuẩn theo API ?date=YYYY-MM-DD */}
               <div className="flex flex-wrap items-center justify-between gap-4 p-5 bg-white rounded-lg border border-orange-100/70 shadow-xs">
@@ -3019,14 +3545,11 @@ export default function CashierPage() {
                     <h2 className="text-lg lg:text-xl font-extrabold text-slate-900">
                       Báo cáo Doanh thu
                     </h2>
-
                   </div>
                 </div>
 
                 {/* Bộ lọc Date Picker chuẩn ?date=YYYY-MM-DD */}
                 <div className="flex flex-wrap items-center gap-2">
-
-
                   <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-md shadow-xs">
                     <Calendar className="w-4 h-4 text-slate-400" />
                     <input
@@ -3053,7 +3576,8 @@ export default function CashierPage() {
                       {formatCurrency(revenueReport.totalRevenueVnd)}
                     </h3>
                     <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1 mt-0.5">
-                      <TrendingUp className="w-3.5 h-3.5" /> Sau thuế và giảm giá
+                      <TrendingUp className="w-3.5 h-3.5" /> Sau thuế và giảm
+                      giá
                     </span>
                   </div>
                 </div>
@@ -3069,7 +3593,6 @@ export default function CashierPage() {
                     <h3 className="text-2xl font-black text-slate-900 mt-0.5">
                       {revenueReport.totalOrdersCompleted} đơn
                     </h3>
-
                   </div>
                 </div>
 
@@ -3080,15 +3603,21 @@ export default function CashierPage() {
                   <div className="flex-1 space-y-1">
                     <div className="flex justify-between text-xs font-semibold text-slate-600">
                       <span>Tạm tính:</span>
-                      <strong className="text-slate-800">{formatCurrency(revenueReport.subtotalVnd)}</strong>
+                      <strong className="text-slate-800">
+                        {formatCurrency(revenueReport.subtotalVnd)}
+                      </strong>
                     </div>
                     <div className="flex justify-between text-xs font-semibold text-rose-600">
                       <span>Giảm giá:</span>
-                      <strong>-{formatCurrency(revenueReport.discountVnd)}</strong>
+                      <strong>
+                        -{formatCurrency(revenueReport.discountVnd)}
+                      </strong>
                     </div>
                     <div className="flex justify-between text-xs font-semibold text-slate-600">
                       <span>Thuế VAT (8%):</span>
-                      <strong className="text-slate-800">+{formatCurrency(revenueReport.vatVnd)}</strong>
+                      <strong className="text-slate-800">
+                        +{formatCurrency(revenueReport.vatVnd)}
+                      </strong>
                     </div>
                   </div>
                 </div>
@@ -3105,7 +3634,6 @@ export default function CashierPage() {
                       <h3 className="font-extrabold text-base text-slate-900">
                         Top 10 Món bán chạy nhất trong ngày
                       </h3>
-
                     </div>
                   </div>
                 </div>
@@ -3116,28 +3644,39 @@ export default function CashierPage() {
                       <tr className="border-b border-slate-100 text-slate-400 uppercase text-[11px] font-bold">
                         <th className="py-3 px-3">Hạng</th>
                         <th className="py-3 px-3">Tên món ăn</th>
-                        <th className="py-3 px-3 text-center">Số lượng đã bán</th>
+                        <th className="py-3 px-3 text-center">
+                          Số lượng đã bán
+                        </th>
                         <th className="py-3 px-3 text-right">Tổng doanh thu</th>
                         <th className="py-3 px-3 text-right">Tỷ trọng</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
                       {topItemsReport.slice(0, 10).map((it, idx) => {
-                        const percent = revenueReport.subtotalVnd > 0
-                          ? Math.round((it.totalRevenueVnd / revenueReport.subtotalVnd) * 100)
-                          : 0;
+                        const percent =
+                          revenueReport.subtotalVnd > 0
+                            ? Math.round(
+                                (it.totalRevenueVnd /
+                                  revenueReport.subtotalVnd) *
+                                  100,
+                              )
+                            : 0;
                         return (
-                          <tr key={it.menuItemId || idx} className="hover:bg-orange-50/40 transition-colors">
+                          <tr
+                            key={it.menuItemId || idx}
+                            className="hover:bg-orange-50/40 transition-colors"
+                          >
                             <td className="py-3 px-3">
                               <span
-                                className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-black ${idx === 0
-                                  ? 'bg-amber-400 text-white shadow-xs'
-                                  : idx === 1
-                                    ? 'bg-slate-300 text-slate-700'
-                                    : idx === 2
-                                      ? 'bg-amber-600 text-white'
-                                      : 'text-slate-400'
-                                  }`}
+                                className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-black ${
+                                  idx === 0
+                                    ? "bg-amber-400 text-white shadow-xs"
+                                    : idx === 1
+                                      ? "bg-slate-300 text-slate-700"
+                                      : idx === 2
+                                        ? "bg-amber-600 text-white"
+                                        : "text-slate-400"
+                                }`}
                               >
                                 {idx + 1}
                               </span>
@@ -3161,13 +3700,289 @@ export default function CashierPage() {
                   </table>
                 </div>
               </div>
+
+              {/* BẢNG LỊCH SỬ CHI TIẾT CÁC HÓA ĐƠN TRONG NGÀY (RÀ SOÁT CUỐI NGÀY) */}
+              <div className="bg-white rounded-lg p-5 lg:p-6 border border-orange-100/70 shadow-xs space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-md bg-orange-100 text-orange-600 flex items-center justify-center">
+                      <Receipt className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-base text-slate-900">
+                        Lịch sử chi tiết các hóa đơn trong ngày ({invoicesReport.length})
+                      </h3>
+                    </div>
+                  </div>
+                </div>
+
+                {invoicesReport.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 text-sm font-medium">
+                    Chưa có hóa đơn thanh toán nào trong ngày {reportDate}.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs sm:text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-100 text-slate-400 uppercase text-[11px] font-bold">
+                          <th className="py-3 px-3">Mã HĐ</th>
+                          <th className="py-3 px-3">Bàn / Mã đơn</th>
+                          <th className="py-3 px-3">Thời gian</th>
+                          <th className="py-3 px-3">Nhân viên thanh toán</th>
+                          <th className="py-3 px-3 text-right">Tạm tính</th>
+                          <th className="py-3 px-3 text-right">Giảm giá</th>
+                          <th className="py-3 px-3 text-right">VAT (8%)</th>
+                          <th className="py-3 px-3 text-right">Tổng thu</th>
+                          <th className="py-3 px-3 text-center">Chi tiết</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                        {invoicesReport.map((inv) => {
+                          const paidTimeStr = inv.paidAt
+                            ? new Date(inv.paidAt).toLocaleString("vi-VN")
+                            : "";
+                          return (
+                            <tr
+                              key={inv.invoiceId}
+                              className="hover:bg-orange-50/40 transition-colors"
+                            >
+                              <td className="py-3 px-3 font-black text-slate-900">
+                                {inv.invoiceCode}
+                              </td>
+                              <td className="py-3 px-3">
+                                <span className="font-bold text-slate-900">
+                                  {inv.tableName}
+                                </span>{" "}
+                                <span className="text-xs text-slate-400">
+                                  ({inv.orderCode})
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-slate-500">
+                                {paidTimeStr}
+                              </td>
+                              <td className="py-3 px-3">
+                                <span className="px-2 py-0.5 rounded bg-orange-50 text-orange-700 border border-orange-200/60 text-xs font-bold">
+                                  {inv.cashierName || "Thu ngân"}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-right text-slate-600">
+                                {formatCurrency(inv.subtotalVnd)}
+                              </td>
+                              <td className="py-3 px-3 text-right text-rose-600">
+                                {inv.discountVnd > 0
+                                  ? `-${formatCurrency(inv.discountVnd)}`
+                                  : "0 đ"}
+                              </td>
+                              <td className="py-3 px-3 text-right text-slate-600">
+                                {formatCurrency(inv.vatVnd)}
+                              </td>
+                              <td className="py-3 px-3 text-right font-black text-orange-600">
+                                {formatCurrency(inv.totalVnd)}
+                              </td>
+                              <td className="py-3 px-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedHistoryInvoice(inv)}
+                                  className="px-2.5 py-1 rounded-md bg-orange-50 hover:bg-orange-100 text-orange-600 font-bold text-xs inline-flex items-center gap-1 transition-colors cursor-pointer"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>Xem</span>
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ===================================================== */}
+          {/* TAB DÀNH CHO ADMIN: QUẢN LÝ TÀI KHOẢN                 */}
+          {/* ===================================================== */}
+          {isAdmin && activeTab === "accounts" && (
+            <div className="bg-white rounded-lg p-5 lg:p-6 shadow-xs border border-orange-100/80 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-md bg-orange-100 text-orange-600 flex items-center justify-center">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <h2 className="text-lg lg:text-xl font-extrabold text-slate-900">
+                    Quản lý Tài khoản ({accountsList.length})
+                  </h2>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAccountForm({
+                      username: "",
+                      fullName: "",
+                      password: "",
+                      role: "WAITER",
+                      active: true,
+                    });
+                    setIsAddAccountOpen(true);
+                  }}
+                  className="px-4 py-2.5 rounded-md bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-sm flex items-center gap-2 shadow-sm transition-colors cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                  <span>Thêm tài khoản</span>
+                </button>
+              </div>
+
+              {/* Thanh tìm kiếm & Lọc theo Role */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="relative w-full sm:w-64 shrink-0">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={accountSearchQuery}
+                    onChange={(e) => setAccountSearchQuery(e.target.value)}
+                    aria-label="Tìm kiếm tài khoản"
+                    className="w-full pl-9 pr-3 py-1.5 rounded-md border border-slate-200 text-xs sm:text-sm font-medium outline-none focus:border-orange-500 bg-white"
+                  />
+                </div>
+
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none flex-1 min-w-0">
+                  {[
+                    { key: "ALL", label: `Tất cả (${accountsList.length})` },
+                    {
+                      key: "ADMIN",
+                      label: `Quản trị (${accountsList.filter((a) => a.role === "ADMIN").length})`,
+                    },
+                    {
+                      key: "CASHIER",
+                      label: `Thu ngân (${accountsList.filter((a) => a.role === "CASHIER").length})`,
+                    },
+                    {
+                      key: "WAITER",
+                      label: `Phục vụ (${accountsList.filter((a) => a.role === "WAITER").length})`,
+                    },
+                    {
+                      key: "KITCHEN",
+                      label: `Nhà bếp (${accountsList.filter((a) => a.role === "KITCHEN").length})`,
+                    },
+                  ].map((r) => (
+                    <button
+                      key={r.key}
+                      type="button"
+                      onClick={() => setAccountRoleFilter(r.key)}
+                      className={`px-3 py-1 rounded-md text-xs sm:text-sm font-bold border whitespace-nowrap cursor-pointer shrink-0 transition-colors ${
+                        accountRoleFilter === r.key
+                          ? "border-orange-500 bg-orange-500 text-white shadow-xs"
+                          : "border-slate-200 bg-white text-slate-700 hover:bg-orange-50 hover:text-orange-600"
+                      }`}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Bảng danh sách tài khoản */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs sm:text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-slate-400 uppercase text-[11px] font-bold">
+                      <th className="py-3 px-3">User ID (Tên đăng nhập)</th>
+                      <th className="py-3 px-3">Họ và tên</th>
+                      <th className="py-3 px-3">Vai trò (Role)</th>
+                      <th className="py-3 px-3">Trạng thái</th>
+                      <th className="py-3 px-3 text-right">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                    {filteredAccounts.map((acc) => {
+                      const roleLabel =
+                        acc.role === "ADMIN"
+                          ? "Quản trị viên (ADMIN)"
+                          : acc.role === "CASHIER"
+                            ? "Thu ngân (CASHIER)"
+                            : acc.role === "KITCHEN"
+                              ? "Nhà bếp (KITCHEN)"
+                              : "Phục vụ (WAITER)";
+                      return (
+                        <tr
+                          key={acc.id}
+                          className="hover:bg-orange-50/40 transition-colors"
+                        >
+                          <td className="py-3 px-3 font-extrabold text-slate-900">
+                            {acc.username}
+                          </td>
+                          <td className="py-3 px-3 font-bold text-slate-800">
+                            {acc.fullName || acc.username}
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="px-2.5 py-1 rounded-md bg-orange-50 text-orange-700 border border-orange-200/70 text-xs font-bold">
+                              {roleLabel}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold ${
+                                acc.active
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
+                                  : "bg-rose-50 text-rose-700 border border-rose-200/60"
+                              }`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  acc.active ? "bg-emerald-500" : "bg-rose-500"
+                                }`}
+                              />
+                              {acc.active ? "Hoạt động" : "Đã khóa"}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-right">
+                            <div className="inline-flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedAccountForAction(acc);
+                                  setAccountForm({
+                                    username: acc.username,
+                                    fullName: acc.fullName || "",
+                                    password: "",
+                                    role: acc.role,
+                                    active: acc.active,
+                                  });
+                                  setIsEditAccountOpen(true);
+                                }}
+                                className="px-3 py-1.5 rounded-md bg-orange-100/80 hover:bg-orange-200/80 text-orange-700 font-bold text-xs inline-flex items-center gap-1 transition-colors cursor-pointer"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                                <span>Sửa</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedAccountForAction(acc);
+                                  setIsDeleteAccountOpen(true);
+                                }}
+                                className="px-3 py-1.5 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs inline-flex items-center gap-1 transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Xóa</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
           {/* ===================================================== */}
           {/* TAB 5: HỒ SƠ NGƯỜI DÙNG (CHUẨN HÓA 100% THEO API /auth/me) */}
           {/* ===================================================== */}
-          {activeTab === 'profile' && (
+          {activeTab === "profile" && (
             <div className="max-w-2xl mx-auto space-y-6 pt-4">
               {/* Thẻ đại diện tài khoản */}
               <div className="bg-white rounded-xl p-6 lg:p-8 border border-orange-100/80 shadow-xs flex flex-col sm:flex-row items-center gap-6">
@@ -3186,7 +4001,7 @@ export default function CashierPage() {
                 <div className="flex-1 text-center sm:text-left space-y-1.5">
                   <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
                     <h2 className="text-xl lg:text-2xl font-black text-slate-900">
-                      {profileUser.username}
+                      {profileUser.displayName}
                     </h2>
                     <span className="px-2.5 py-0.5 rounded-md bg-orange-100 text-orange-700 font-extrabold text-xs">
                       {profileUser.role}
@@ -3205,11 +4020,22 @@ export default function CashierPage() {
                 </h3>
 
                 <div className="divide-y divide-slate-100 text-sm">
+                  {/* Họ và tên */}
+                  <div className="py-3 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 text-slate-600 font-medium">
+                      <User className="w-4 h-4 text-slate-400" />
+                      <span>Họ và tên</span>
+                    </div>
+                    <span className="font-bold text-slate-900">
+                      {profileUser.displayName}
+                    </span>
+                  </div>
+
                   {/* Tên đăng nhập */}
                   <div className="py-3 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3 text-slate-600 font-medium">
                       <User className="w-4 h-4 text-slate-400" />
-                      <span>Tên đăng nhập</span>
+                      <span>User ID (Tên đăng nhập)</span>
                     </div>
                     <span className="font-bold text-slate-900">
                       {profileUser.username}
@@ -3231,9 +4057,6 @@ export default function CashierPage() {
                       </span>
                     </div>
                   </div>
-
-
-
                 </div>
               </div>
             </div>
@@ -3255,7 +4078,8 @@ export default function CashierPage() {
                 NHÀ HÀNG ROMS
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                Bàn: <strong>{selectedTable?.name || 'N/A'}</strong> • Giờ in: {currentTime}
+                Bàn: <strong>{selectedTable?.name || "N/A"}</strong> Giờ in:{" "}
+                {currentTime}
               </p>
             </div>
 
@@ -3268,13 +4092,24 @@ export default function CashierPage() {
               </div>
               <div className="space-y-1.5 divide-y divide-slate-100/60">
                 {orderItems
-                  .filter((it) => it.status === 'SERVED')
+                  .filter((it) => it.status === "SERVED")
                   .map((it) => (
-                    <div key={it.id} className="grid grid-cols-12 font-medium text-slate-700 py-1 items-center">
-                      <span className="col-span-4 truncate pr-1 font-semibold">{it.name}</span>
-                      <span className="col-span-3 text-right pr-6 text-slate-500">{formatCurrency(it.unitPriceVnd)}</span>
-                      <span className="col-span-2 text-center font-bold text-slate-800">{it.quantity}</span>
-                      <span className="col-span-3 text-right font-bold text-slate-900">{formatCurrency(it.unitPriceVnd * it.quantity)}</span>
+                    <div
+                      key={it.id}
+                      className="grid grid-cols-12 font-medium text-slate-700 py-1 items-center"
+                    >
+                      <span className="col-span-4 truncate pr-1 font-semibold">
+                        {it.name}
+                      </span>
+                      <span className="col-span-3 text-right pr-6 text-slate-500">
+                        {formatCurrency(it.unitPriceVnd)}
+                      </span>
+                      <span className="col-span-2 text-center font-bold text-slate-800">
+                        {it.quantity}
+                      </span>
+                      <span className="col-span-3 text-right font-bold text-slate-900">
+                        {formatCurrency(it.unitPriceVnd * it.quantity)}
+                      </span>
                     </div>
                   ))}
               </div>
@@ -3283,21 +4118,29 @@ export default function CashierPage() {
             <div className="border-t border-dashed border-slate-200 pt-3 space-y-1.5 text-xs font-semibold">
               <div className="flex justify-between text-slate-500">
                 <span>Tạm tính:</span>
-                <span className="font-bold text-slate-800">{formatCurrency(subtotal)}</span>
+                <span className="font-bold text-slate-800">
+                  {formatCurrency(subtotal)}
+                </span>
               </div>
               {safeDiscount > 0 && (
                 <div className="flex justify-between text-rose-600">
                   <span>Giảm giá:</span>
-                  <span className="font-bold">-{formatCurrency(safeDiscount)}</span>
+                  <span className="font-bold">
+                    -{formatCurrency(safeDiscount)}
+                  </span>
                 </div>
               )}
               <div className="flex justify-between text-slate-500">
                 <span>VAT (8%):</span>
-                <span className="font-bold text-slate-800">{formatCurrency(vatAmount)}</span>
+                <span className="font-bold text-slate-800">
+                  {formatCurrency(vatAmount)}
+                </span>
               </div>
               <div className="flex justify-between items-center text-sm font-black text-slate-900 pt-1.5 border-t border-slate-200">
                 <span>Tổng cộng:</span>
-                <span className="text-base text-orange-600 font-extrabold">{formatCurrency(grandTotal)}</span>
+                <span className="text-base text-orange-600 font-extrabold">
+                  {formatCurrency(grandTotal)}
+                </span>
               </div>
             </div>
 
@@ -3306,7 +4149,7 @@ export default function CashierPage() {
                 onClick={() => {
                   window.print();
                   setIsBillPreviewOpen(false);
-                  showToast('Đã gửi lệnh in phiếu tạm tính!', 'success');
+                  showToast("Đã gửi lệnh in phiếu tạm tính!", "success");
                 }}
                 className="flex-1 py-2.5 px-4 rounded-md bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-sm flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
               >
@@ -3333,7 +4176,7 @@ export default function CashierPage() {
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
                 <CreditCard className="w-5 h-5 text-orange-500" />
-                <span>Thanh toán bàn {selectedTable?.name || ''}</span>
+                <span>Thanh toán bàn {selectedTable?.name || ""}</span>
               </h3>
               <button
                 onClick={() => setIsPayModalOpen(false)}
@@ -3360,41 +4203,78 @@ export default function CashierPage() {
             </div>
 
             {/* Ô tiền khách đưa & tiền thối */}
-            <div className="space-y-2.5 pt-1">
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">
-                  Tiền khách đưa (VNĐ):
-                </label>
-                <input
-                  type="number"
-                  value={customerPaidAmount}
-                  onChange={(e) => setCustomerPaidAmount(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-black text-slate-900 outline-none focus:border-orange-500"
-                />
-              </div>
-              <div className="flex justify-between items-center text-xs font-bold p-2.5 rounded-md bg-slate-50 border border-slate-100">
-                <span className="text-slate-500">Tiền thối lại cho khách:</span>
-                <span className="text-sm font-black text-emerald-600">
-                  {formatCurrency(Math.max(0, (Number(customerPaidAmount) || 0) - grandTotal))}
-                </span>
-              </div>
-            </div>
+            {(() => {
+              const paidNum = Number(customerPaidAmount);
+              const isInsufficient =
+                String(customerPaidAmount).trim() === "" ||
+                Number.isNaN(paidNum) ||
+                paidNum < grandTotal;
 
-            <div className="flex items-center gap-3 pt-2">
-              <button
-                onClick={handleConfirmPayment}
-                className="flex-1 py-2.5 px-4 rounded-md bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-extrabold text-sm flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Xác nhận & Xuất hóa đơn</span>
-              </button>
-              <button
-                onClick={() => setIsPayModalOpen(false)}
-                className="py-2.5 px-4 rounded-md border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold text-sm transition-colors cursor-pointer"
-              >
-                Hủy
-              </button>
-            </div>
+              return (
+                <>
+                  <div className="space-y-2.5 pt-1">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">
+                        Tiền khách đưa (VNĐ):
+                      </label>
+                      <input
+                        type="number"
+                        min={grandTotal}
+                        value={customerPaidAmount}
+                        onChange={(e) => setCustomerPaidAmount(e.target.value)}
+                        className={`w-full px-4 py-2.5 rounded-md border text-sm font-black text-slate-900 outline-none ${
+                          isInsufficient
+                            ? "border-rose-500 focus:border-rose-600 bg-rose-50/30"
+                            : "border-slate-200 focus:border-orange-500"
+                        }`}
+                      />
+                      {isInsufficient && (
+                        <p className="mt-1.5 text-xs font-bold text-rose-600 flex items-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>
+                            Tiền khách đưa không được nhỏ hơn hóa đơn (
+                            {formatCurrency(grandTotal)})
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex justify-between items-center text-xs font-bold p-2.5 rounded-md bg-slate-50 border border-slate-100">
+                      <span className="text-slate-500">
+                        Tiền thối lại cho khách:
+                      </span>
+                      <span className="text-sm font-black text-emerald-600">
+                        {formatCurrency(
+                          isInsufficient
+                            ? 0
+                            : Math.max(0, paidNum - grandTotal),
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 pt-2">
+                    <button
+                      onClick={handleConfirmPayment}
+                      disabled={isInsufficient}
+                      className={`flex-1 py-2.5 px-4 rounded-md font-extrabold text-sm flex items-center justify-center gap-1.5 shadow-sm transition-colors ${
+                        isInsufficient
+                          ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                          : "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white cursor-pointer"
+                      }`}
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Xác nhận & Xuất hóa đơn</span>
+                    </button>
+                    <button
+                      onClick={() => setIsPayModalOpen(false)}
+                      className="py-2.5 px-4 rounded-md border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold text-sm transition-colors cursor-pointer"
+                    >
+                      Hủy
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -3413,10 +4293,12 @@ export default function CashierPage() {
                 NHÀ HÀNG ROMS
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                Số HĐ: <strong>{lastPaidInvoice.invoiceCode}</strong> • {lastPaidInvoice.paidAt}
+                Số HĐ: <strong>{lastPaidInvoice.invoiceCode}</strong>{" "}
+                {lastPaidInvoice.paidAt}
               </p>
               <p className="text-xs text-slate-400">
-                Bàn: <strong>{lastPaidInvoice.tableName}</strong> • Thu ngân: {lastPaidInvoice.cashierName}
+                Bàn: <strong>{lastPaidInvoice.tableName}</strong> • Nhân viên thanh toán:{" "}
+                <strong className="text-slate-700">{lastPaidInvoice.cashierName}</strong>
               </p>
             </div>
 
@@ -3429,11 +4311,22 @@ export default function CashierPage() {
               </div>
               <div className="space-y-1.5 divide-y divide-slate-100/60">
                 {lastPaidInvoice.items.map((it, idx) => (
-                  <div key={it.id || it.orderItemId || idx} className="grid grid-cols-12 font-medium text-slate-700 py-1 items-center">
-                    <span className="col-span-4 truncate pr-1 font-semibold">{it.name}</span>
-                    <span className="col-span-3 text-right pr-6 text-slate-500">{formatCurrency(it.unitPriceVnd)}</span>
-                    <span className="col-span-2 text-center font-bold text-slate-800">{it.quantity}</span>
-                    <span className="col-span-3 text-right font-bold text-slate-900">{formatCurrency(it.unitPriceVnd * it.quantity)}</span>
+                  <div
+                    key={it.id || it.orderItemId || idx}
+                    className="grid grid-cols-12 font-medium text-slate-700 py-1 items-center"
+                  >
+                    <span className="col-span-4 truncate pr-1 font-semibold">
+                      {it.name}
+                    </span>
+                    <span className="col-span-3 text-right pr-6 text-slate-500">
+                      {formatCurrency(it.unitPriceVnd)}
+                    </span>
+                    <span className="col-span-2 text-center font-bold text-slate-800">
+                      {it.quantity}
+                    </span>
+                    <span className="col-span-3 text-right font-bold text-slate-900">
+                      {formatCurrency(it.unitPriceVnd * it.quantity)}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -3442,23 +4335,35 @@ export default function CashierPage() {
             <div className="border-t border-dashed border-slate-200 pt-3 space-y-1 text-xs font-semibold">
               <div className="flex justify-between text-slate-500">
                 <span>Tạm tính:</span>
-                <span className="font-bold text-slate-800">{formatCurrency(lastPaidInvoice.subtotal)}</span>
+                <span className="font-bold text-slate-800">
+                  {formatCurrency(lastPaidInvoice.subtotal)}
+                </span>
               </div>
               {lastPaidInvoice.discountVnd > 0 && (
                 <div className="flex justify-between text-rose-600">
                   <span>Giảm giá:</span>
-                  <span className="font-bold">-{formatCurrency(lastPaidInvoice.discountVnd)}</span>
+                  <span className="font-bold">
+                    -{formatCurrency(lastPaidInvoice.discountVnd)}
+                  </span>
                 </div>
               )}
               <div className="flex justify-between text-slate-500">
                 <span>Thuế VAT (8%):</span>
-                <span className="font-bold text-slate-800">{formatCurrency(lastPaidInvoice.vatAmount)}</span>
+                <span className="font-bold text-slate-800">
+                  {formatCurrency(lastPaidInvoice.vatAmount)}
+                </span>
               </div>
               <div className="flex justify-between items-center text-sm font-black text-slate-900 pt-1.5 border-t border-slate-200">
                 <span>Tổng thanh toán:</span>
-                <span className="text-base text-orange-600 font-extrabold">{formatCurrency(lastPaidInvoice.grandTotal)}</span>
+                <span className="text-base text-orange-600 font-extrabold">
+                  {formatCurrency(lastPaidInvoice.grandTotal)}
+                </span>
               </div>
               <div className="flex justify-between text-slate-500 pt-1 text-[11px]">
+                <span>Nhân viên thanh toán:</span>
+                <span className="font-bold text-slate-800">{lastPaidInvoice.cashierName}</span>
+              </div>
+              <div className="flex justify-between text-slate-500 text-[11px]">
                 <span>Phương thức:</span>
                 <span className="font-normal text-slate-700">Tiền mặt</span>
               </div>
@@ -3512,9 +4417,10 @@ export default function CashierPage() {
                 </label>
                 <input
                   type="text"
-
                   value={dishForm.name}
-                  onChange={(e) => setDishForm({ ...dishForm, name: e.target.value })}
+                  onChange={(e) =>
+                    setDishForm({ ...dishForm, name: e.target.value })
+                  }
                   className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
                 />
               </div>
@@ -3525,7 +4431,9 @@ export default function CashierPage() {
                 </label>
                 <select
                   value={dishForm.categoryId}
-                  onChange={(e) => setDishForm({ ...dishForm, categoryId: e.target.value })}
+                  onChange={(e) =>
+                    setDishForm({ ...dishForm, categoryId: e.target.value })
+                  }
                   className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500 cursor-pointer"
                 >
                   {categories.map((c) => (
@@ -3542,9 +4450,10 @@ export default function CashierPage() {
                 </label>
                 <input
                   type="number"
-
                   value={dishForm.priceVnd}
-                  onChange={(e) => setDishForm({ ...dishForm, priceVnd: e.target.value })}
+                  onChange={(e) =>
+                    setDishForm({ ...dishForm, priceVnd: e.target.value })
+                  }
                   className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
                 />
               </div>
@@ -3555,9 +4464,10 @@ export default function CashierPage() {
                 </label>
                 <input
                   type="text"
-
                   value={dishForm.description}
-                  onChange={(e) => setDishForm({ ...dishForm, description: e.target.value })}
+                  onChange={(e) =>
+                    setDishForm({ ...dishForm, description: e.target.value })
+                  }
                   className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
                 />
               </div>
@@ -3568,9 +4478,10 @@ export default function CashierPage() {
                 </label>
                 <input
                   type="text"
-
                   value={dishForm.imageUrl}
-                  onChange={(e) => setDishForm({ ...dishForm, imageUrl: e.target.value })}
+                  onChange={(e) =>
+                    setDishForm({ ...dishForm, imageUrl: e.target.value })
+                  }
                   className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
                 />
               </div>
@@ -3622,7 +4533,9 @@ export default function CashierPage() {
                 <input
                   type="text"
                   value={dishForm.name}
-                  onChange={(e) => setDishForm({ ...dishForm, name: e.target.value })}
+                  onChange={(e) =>
+                    setDishForm({ ...dishForm, name: e.target.value })
+                  }
                   className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
                 />
               </div>
@@ -3633,7 +4546,9 @@ export default function CashierPage() {
                 </label>
                 <select
                   value={dishForm.categoryId}
-                  onChange={(e) => setDishForm({ ...dishForm, categoryId: e.target.value })}
+                  onChange={(e) =>
+                    setDishForm({ ...dishForm, categoryId: e.target.value })
+                  }
                   className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500 cursor-pointer"
                 >
                   {categories.map((c) => (
@@ -3651,7 +4566,9 @@ export default function CashierPage() {
                 <input
                   type="number"
                   value={dishForm.priceVnd}
-                  onChange={(e) => setDishForm({ ...dishForm, priceVnd: e.target.value })}
+                  onChange={(e) =>
+                    setDishForm({ ...dishForm, priceVnd: e.target.value })
+                  }
                   className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
                 />
               </div>
@@ -3663,7 +4580,9 @@ export default function CashierPage() {
                 <input
                   type="text"
                   value={dishForm.description}
-                  onChange={(e) => setDishForm({ ...dishForm, description: e.target.value })}
+                  onChange={(e) =>
+                    setDishForm({ ...dishForm, description: e.target.value })
+                  }
                   className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
                 />
               </div>
@@ -3675,7 +4594,9 @@ export default function CashierPage() {
                 <input
                   type="text"
                   value={dishForm.imageUrl}
-                  onChange={(e) => setDishForm({ ...dishForm, imageUrl: e.target.value })}
+                  onChange={(e) =>
+                    setDishForm({ ...dishForm, imageUrl: e.target.value })
+                  }
                   className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
                 />
               </div>
@@ -3713,7 +4634,8 @@ export default function CashierPage() {
               </h3>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Bạn có chắc chắn muốn xóa món này khỏi thực đơn? Món ăn sẽ không thể đặt hàng được nữa.
+              Bạn có chắc chắn muốn xóa món này khỏi thực đơn? Món ăn sẽ không
+              thể đặt hàng được nữa.
             </p>
             <div className="flex items-center gap-3 pt-2">
               <button
@@ -3758,9 +4680,10 @@ export default function CashierPage() {
               </label>
               <input
                 type="text"
-
                 value={categoryForm.name}
-                onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                onChange={(e) =>
+                  setCategoryForm({ ...categoryForm, name: e.target.value })
+                }
                 className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
               />
             </div>
@@ -3810,7 +4733,9 @@ export default function CashierPage() {
               <input
                 type="text"
                 value={categoryForm.name}
-                onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                onChange={(e) =>
+                  setCategoryForm({ ...categoryForm, name: e.target.value })
+                }
                 className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
               />
             </div>
@@ -3847,7 +4772,8 @@ export default function CashierPage() {
               </h3>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Bạn có chắc chắn muốn xóa danh mục <strong>"{categoryForm.name}"</strong>?
+              Bạn có chắc chắn muốn xóa danh mục{" "}
+              <strong>"{categoryForm.name}"</strong>?
             </p>
             <div className="flex items-center gap-3 pt-2">
               <button
@@ -3893,9 +4819,10 @@ export default function CashierPage() {
                 </label>
                 <input
                   type="text"
-
                   value={newTableForm.name}
-                  onChange={(e) => setNewTableForm({ ...newTableForm, name: e.target.value })}
+                  onChange={(e) =>
+                    setNewTableForm({ ...newTableForm, name: e.target.value })
+                  }
                   className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
                 />
               </div>
@@ -3909,7 +4836,12 @@ export default function CashierPage() {
                   min="1"
                   max="30"
                   value={newTableForm.capacity}
-                  onChange={(e) => setNewTableForm({ ...newTableForm, capacity: Math.max(1, Number(e.target.value) || 1) })}
+                  onChange={(e) =>
+                    setNewTableForm({
+                      ...newTableForm,
+                      capacity: Math.max(1, Number(e.target.value) || 1),
+                    })
+                  }
                   className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
                 />
               </div>
@@ -3947,7 +4879,8 @@ export default function CashierPage() {
               </h3>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Bạn có chắc chắn muốn xóa bàn này khỏi hệ thống? Bàn sẽ bị vô hiệu hóa và không thể nhận khách được nữa.
+              Bạn có chắc chắn muốn xóa bàn này khỏi hệ thống? Bàn sẽ bị vô hiệu
+              hóa và không thể nhận khách được nữa.
             </p>
             <div className="flex items-center gap-3 pt-2">
               <button
@@ -4015,11 +4948,420 @@ export default function CashierPage() {
               <button
                 onClick={() => {
                   setIsSettingsOpen(false);
-                  showToast('Đã lưu cấu hình quầy thu ngân!', 'success');
+                  showToast("Đã lưu cấu hình quầy thu ngân!", "success");
                 }}
                 className="w-full py-2.5 px-4 rounded-md bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-sm transition-colors cursor-pointer"
               >
                 Lưu cấu hình
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 13: CHI TIẾT HÓA ĐƠN TRONG LỊCH SỬ DOANH THU        */}
+      {/* ========================================================= */}
+      {selectedHistoryInvoice && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-lg p-6 w-full max-w-xl shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <span className="px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wider mb-1 inline-block">
+                  Chi tiết hóa đơn đã thanh toán
+                </span>
+                <h3 className="font-black text-lg text-slate-900">
+                  Hóa đơn {selectedHistoryInvoice.invoiceCode} ({selectedHistoryInvoice.tableName})
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedHistoryInvoice(null)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 p-3.5 rounded-md bg-slate-50 border border-slate-100 text-xs">
+              <div>
+                <span className="text-slate-400 font-semibold block">Mã đơn hàng:</span>
+                <strong className="text-slate-800 font-extrabold">
+                  {selectedHistoryInvoice.orderCode}
+                </strong>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold block">Thời gian thanh toán:</span>
+                <strong className="text-slate-800 font-extrabold">
+                  {selectedHistoryInvoice.paidAt
+                    ? new Date(selectedHistoryInvoice.paidAt).toLocaleString("vi-VN")
+                    : ""}
+                </strong>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold block">Nhân viên thanh toán:</span>
+                <strong className="text-orange-600 font-extrabold">
+                  {selectedHistoryInvoice.cashierName || "Thu ngân"}
+                </strong>
+              </div>
+              <div>
+                <span className="text-slate-400 font-semibold block">Nhân viên mở đơn:</span>
+                <strong className="text-slate-800 font-extrabold">
+                  {selectedHistoryInvoice.createdByName || "Phục vụ"}
+                </strong>
+              </div>
+            </div>
+
+            <div className="max-h-60 overflow-y-auto border border-slate-100 rounded-md">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold">
+                  <tr>
+                    <th className="py-2.5 px-3">Món ăn</th>
+                    <th className="py-2.5 px-3">Truy vết (Gọi / Bếp)</th>
+                    <th className="py-2.5 px-3 text-right">Đơn giá</th>
+                    <th className="py-2.5 px-3 text-center">SL</th>
+                    <th className="py-2.5 px-3 text-right">Thành tiền</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                  {(selectedHistoryInvoice.items || []).map((it, idx) => (
+                    <tr key={it.orderItemId || idx}>
+                      <td className="py-2.5 px-3 font-bold text-slate-900">
+                        {it.name}{" "}
+                        <span className="text-[10px] text-slate-400 font-semibold">
+                          (Lượt {it.round || 1})
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-[11px] text-slate-500">
+                        <div>Gọi: <strong className="text-slate-700">{it.orderedByName || selectedHistoryInvoice.createdByName || "N/A"}</strong></div>
+                        {it.cookedByName && (
+                          <div>Bếp: <strong className="text-slate-700">{it.cookedByName}</strong></div>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        {formatCurrency(it.unitPriceVnd)}
+                      </td>
+                      <td className="py-2.5 px-3 text-center font-bold">
+                        {it.quantity}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-black text-slate-900">
+                        {formatCurrency(it.lineTotalVnd ?? it.unitPriceVnd * it.quantity)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="border-t border-dashed border-slate-200 pt-3 space-y-1 text-xs font-semibold">
+              <div className="flex justify-between text-slate-500">
+                <span>Tạm tính:</span>
+                <span className="font-bold text-slate-800">
+                  {formatCurrency(selectedHistoryInvoice.subtotalVnd)}
+                </span>
+              </div>
+              {selectedHistoryInvoice.discountVnd > 0 && (
+                <div className="flex justify-between text-rose-600">
+                  <span>Giảm giá:</span>
+                  <span className="font-bold">
+                    -{formatCurrency(selectedHistoryInvoice.discountVnd)}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between text-slate-500">
+                <span>Thuế VAT (8%):</span>
+                <span className="font-bold text-slate-800">
+                  {formatCurrency(selectedHistoryInvoice.vatVnd)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-sm font-black text-slate-900 pt-1.5 border-t border-slate-200">
+                <span>Tổng thanh toán:</span>
+                <span className="text-base text-orange-600 font-extrabold">
+                  {formatCurrency(selectedHistoryInvoice.totalVnd)}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex-1 py-2.5 px-4 rounded-md bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-sm flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>In lại hóa đơn</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedHistoryInvoice(null)}
+                className="py-2.5 px-4 rounded-md border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold text-sm transition-colors cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 14: THÊM TÀI KHOẢN MỚI (POST /api/v1/users)         */}
+      {/* ========================================================= */}
+      {isAddAccountOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                <Users className="w-5 h-5 text-orange-500" />
+                <span>Thêm tài khoản mới</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsAddAccountOpen(false)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  User ID (Tên đăng nhập)
+                </label>
+                <input
+                  type="text"
+                  value={accountForm.username}
+                  onChange={(e) =>
+                    setAccountForm({ ...accountForm, username: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Họ và tên
+                </label>
+                <input
+                  type="text"
+                  value={accountForm.fullName}
+                  onChange={(e) =>
+                    setAccountForm({ ...accountForm, fullName: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Mật khẩu (tối thiểu 12 ký tự)
+                </label>
+                <input
+                  type="password"
+                  value={accountForm.password}
+                  onChange={(e) =>
+                    setAccountForm({ ...accountForm, password: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Vai trò (Role)
+                </label>
+                <select
+                  value={accountForm.role}
+                  onChange={(e) =>
+                    setAccountForm({ ...accountForm, role: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500 cursor-pointer"
+                >
+                  <option value="WAITER">Phục vụ (WAITER)</option>
+                  <option value="KITCHEN">Nhà bếp (KITCHEN)</option>
+                  <option value="CASHIER">Thu ngân (CASHIER)</option>
+                  <option value="ADMIN">Quản trị viên (ADMIN)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleCreateAccount}
+                className="flex-1 py-2.5 px-4 rounded-md bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-sm flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Tạo tài khoản</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsAddAccountOpen(false)}
+                className="py-2.5 px-4 rounded-md border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold text-sm transition-colors cursor-pointer"
+              >
+                Hủy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 15: SỬA TÀI KHOẢN (PUT /api/v1/users/{id})          */}
+      {/* ========================================================= */}
+      {isEditAccountOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                <Edit className="w-5 h-5 text-orange-500" />
+                <span>Sửa thông tin tài khoản</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsEditAccountOpen(false)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  User ID (Tên đăng nhập)
+                </label>
+                <input
+                  type="text"
+                  value={accountForm.username}
+                  onChange={(e) =>
+                    setAccountForm({ ...accountForm, username: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Họ và tên
+                </label>
+                <input
+                  type="text"
+                  value={accountForm.fullName}
+                  onChange={(e) =>
+                    setAccountForm({ ...accountForm, fullName: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Vai trò (Role)
+                </label>
+                <select
+                  value={accountForm.role}
+                  onChange={(e) =>
+                    setAccountForm({ ...accountForm, role: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500 cursor-pointer"
+                >
+                  <option value="WAITER">Phục vụ (WAITER)</option>
+                  <option value="KITCHEN">Nhà bếp (KITCHEN)</option>
+                  <option value="CASHIER">Thu ngân (CASHIER)</option>
+                  <option value="ADMIN">Quản trị viên (ADMIN)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Trạng thái tài khoản
+                </label>
+                <select
+                  value={accountForm.active ? "true" : "false"}
+                  onChange={(e) =>
+                    setAccountForm({
+                      ...accountForm,
+                      active: e.target.value === "true",
+                    })
+                  }
+                  className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500 cursor-pointer"
+                >
+                  <option value="true">Đang hoạt động</option>
+                  <option value="false">Khóa tài khoản</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Đặt lại mật khẩu mới (Để trống nếu giữ nguyên)
+                </label>
+                <input
+                  type="password"
+                  value={accountForm.password}
+                  onChange={(e) =>
+                    setAccountForm({ ...accountForm, password: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium outline-none focus:border-orange-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleUpdateAccount}
+                className="flex-1 py-2.5 px-4 rounded-md bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-sm flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Lưu thay đổi</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEditAccountOpen(false)}
+                className="py-2.5 px-4 rounded-md border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold text-sm transition-colors cursor-pointer"
+              >
+                Hủy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 16: XÁC NHẬN XÓA TÀI KHOẢN (DELETE /api/v1/users/{id}) */}
+      {/* ========================================================= */}
+      {isDeleteAccountOpen && selectedAccountForAction && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-lg p-6 w-full max-w-sm shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <AlertCircle className="w-6 h-6" />
+              <h3 className="font-extrabold text-base text-slate-900">
+                Xóa tài khoản {selectedAccountForAction.username}?
+              </h3>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Bạn có chắc chắn muốn xóa tài khoản{" "}
+              <strong>
+                {selectedAccountForAction.fullName ||
+                  selectedAccountForAction.username}
+              </strong>{" "}
+              ({selectedAccountForAction.username}) khỏi hệ thống?
+            </p>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                className="flex-1 py-2.5 px-4 rounded-md bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-sm transition-colors cursor-pointer"
+              >
+                Xóa ngay
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsDeleteAccountOpen(false)}
+                className="py-2.5 px-4 rounded-md border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold text-sm transition-colors cursor-pointer"
+              >
+                Hủy
               </button>
             </div>
           </div>

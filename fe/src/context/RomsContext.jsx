@@ -46,12 +46,16 @@ function getRoleDisplay(role) {
 function mapUserView(userDto) {
   if (!userDto) return null;
   const username = userDto.username || '';
+  const fullName = userDto.fullName || '';
+  const displayName = fullName.trim() ? fullName.trim() : username;
   return {
     id: String(userDto.id),
     username,
+    fullName,
+    displayName,
     role: userDto.role,
     roleDisplay: getRoleDisplay(userDto.role),
-    avatarInitial: (username[0] || 'U').toUpperCase(),
+    avatarInitial: ((displayName[0] || username[0]) || 'U').toUpperCase(),
     active: Boolean(userDto.active),
   };
 }
@@ -184,6 +188,9 @@ export function RomsProvider({ children }) {
         updatedAt: formatInstantToHHMM(itemDto.createdAt || orderDto.submittedAt),
         round: Number(itemDto.round) || 1,
         roundFifo: itemCreatedMs,
+        orderedByName: itemDto.orderedByName || orderDto.createdByName || '',
+        cookedByName: itemDto.cookedByName || '',
+        servedByName: itemDto.servedByName || '',
         image: resolveDishImage(itemDto.name, matchedDish?.image),
       };
     });
@@ -194,10 +201,10 @@ export function RomsProvider({ children }) {
       tableId: String(orderDto.tableId),
       tableName: orderDto.tableName || 'Bàn',
       status: orderDto.status,
-      priority: index % 2 === 0 ? 'PRIORITY' : 'NORMAL',
       fifoOrder: submittedTimeMs,
       guests: 2,
       createdAt: formatInstantToHHMM(orderDto.submittedAt || orderDto.createdAt),
+      createdByName: orderDto.createdByName || '',
       paymentRequested: orderDto.status === 'PAYMENT_REQUESTED',
       roundCount: Number(orderDto.roundCount) || 1,
       items: mappedItems,

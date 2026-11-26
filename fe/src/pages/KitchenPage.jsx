@@ -43,6 +43,7 @@ export default function KitchenPage() {
     categories,
     menuItems,
     advanceDishKitchenStatus,
+    cancelDish,
     toggleDishAvailability,
     refreshData,
     showToast,
@@ -105,7 +106,6 @@ export default function KitchenPage() {
           code: roundNum > 1 ? `${order.code}.${roundNum}` : order.code,
           tableId: order.tableId,
           tableName: order.tableName,
-          priority: order.priority || (roundNum === 1 ? 'PRIORITY' : 'NORMAL'),
           receivedAt,
           fifoKey,
           items: itemsInRound,
@@ -204,29 +204,13 @@ export default function KitchenPage() {
       .filter((group) => group.items.length > 0);
   }, [categories, menuItems, menuSelectedCategory, menuSearchQuery]);
 
-  // Màu sắc header thẻ theo thứ tự ưu tiên FIFO giống thiết kế tham khảo (Đỏ -> Cam -> Xanh dương -> Xanh lá)
+  // Màu sắc header thẻ theo thứ tự FIFO (Đỏ -> Cam -> Xanh dương -> Xanh lá)
   const getTicketBannerStyle = (index) => {
     const styles = [
-      {
-        headerBg: 'bg-[#F04438]',
-        badgeText: 'text-[#F04438]',
-        label: 'P.Ưu tiên',
-      },
-      {
-        headerBg: 'bg-[#F97316]',
-        badgeText: 'text-[#F97316]',
-        label: 'B.Bình thường',
-      },
-      {
-        headerBg: 'bg-[#1570EF]',
-        badgeText: 'text-[#1570EF]',
-        label: 'P.Ưu tiên',
-      },
-      {
-        headerBg: 'bg-[#12B76A]',
-        badgeText: 'text-[#12B76A]',
-        label: 'P.Bình thường',
-      },
+      { headerBg: 'bg-[#F04438]' },
+      { headerBg: 'bg-[#F97316]' },
+      { headerBg: 'bg-[#1570EF]' },
+      { headerBg: 'bg-[#12B76A]' },
     ];
     return styles[index % styles.length];
   };
@@ -251,7 +235,7 @@ export default function KitchenPage() {
     }, 300);
   };
 
-  // Hàm render lưới các thẻ đơn hàng theo từng trạng thái (kích thước thu gọn ~20%)
+  // Hàm render lưới các thẻ đơn hàng theo từng trạng thái
   const renderTicketGrid = (ticketsList, statusType, isSplitColumn = false) => {
     if (ticketsList.length === 0) {
       return (
@@ -268,8 +252,8 @@ export default function KitchenPage() {
     }
 
     const gridColsClass = isSplitColumn
-      ? 'grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch'
-      : 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3.5 items-stretch';
+      ? 'grid grid-cols-1 gap-4 items-stretch'
+      : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 items-stretch';
 
     return (
       <div className={gridColsClass}>
@@ -283,33 +267,25 @@ export default function KitchenPage() {
               className="bg-white shadow-xs flex flex-col justify-between overflow-hidden animate-fade-in"
             >
               <div>
-                {/* Đầu thẻ màu sắc trực quan (thu gọn ~20%): Số đơn + Số bàn + Thời gian chờ */}
-                <div className={`${banner.headerBg} text-white p-2.5 space-y-1.5`}>
-                  <div className="flex items-baseline justify-between gap-1.5">
-                    <div className="flex items-baseline gap-1 min-w-0">
-                      <span className="text-sm sm:text-base font-extrabold tracking-tight">
+                {/* Đầu thẻ màu sắc trực quan: Số đơn + Số bàn + Thời gian chờ */}
+                <div className={`${banner.headerBg} text-white p-4`}>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div className="flex items-baseline gap-1.5 min-w-0">
+                      <span className="text-lg sm:text-xl font-extrabold tracking-tight">
                         {ticket.code}
                       </span>
-                      <span className="text-xs sm:text-sm font-bold truncate">
+                      <span className="text-base sm:text-lg font-bold truncate">
                         {ticket.tableName}
                       </span>
                     </div>
-                    <span className="text-xs sm:text-sm font-extrabold shrink-0 tabular-nums">
+                    <span className="text-base sm:text-lg font-extrabold shrink-0 tabular-nums">
                       {elapsed}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-end gap-1.5 text-[11px] font-semibold">
-                    <span
-                      className={`px-2 py-0.5 rounded-full bg-white text-[10px] font-extrabold shrink-0 ${banner.badgeText}`}
-                    >
-                      {banner.label}
                     </span>
                   </div>
                 </div>
 
                 {/* Danh sách các món trong thẻ (FR-K02: Chạm 1 lần để chuyển trạng thái Pending -> Cooking -> Done) */}
-                <div className="divide-y divide-slate-100 px-2.5">
+                <div className="divide-y divide-slate-100 px-4">
                   {ticket.visibleItems.map((item) => {
                     const canAdvance =
                       item.status === DISH_STATUS.PENDING ||
@@ -323,17 +299,17 @@ export default function KitchenPage() {
                             advanceDishKitchenStatus(ticket.orderId, item.id);
                           }
                         }}
-                        className={`py-2 space-y-1.5 transition-colors select-none ${
+                        className={`py-3.5 space-y-2 transition-colors select-none ${
                           canAdvance
                             ? 'cursor-pointer hover:bg-orange-50/60 active:bg-orange-100/60'
                             : ''
                         }`}
                       >
-                        <div className="flex items-center justify-between gap-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
                             {/* Nút tròn 1-touch */}
                             <span
-                              className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                              className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center shrink-0 transition-colors ${
                                 item.status === DISH_STATUS.DONE
                                   ? 'bg-emerald-500 text-white'
                                   : item.status === DISH_STATUS.COOKING
@@ -341,23 +317,56 @@ export default function KitchenPage() {
                                   : 'bg-slate-100 text-transparent hover:bg-orange-100 hover:text-orange-500'
                               }`}
                             >
-                              <Check className="w-2.5 h-2.5 stroke-[3]" />
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
                             </span>
 
-                            <span className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
-                              {item.name}
-                            </span>
+                            {/* Hình ảnh món ăn */}
+                            <img
+                              src={item.image}
+                              alt={item.name}
+                              className="w-12 h-12 sm:w-14 sm:h-14 object-cover shrink-0 bg-slate-100"
+                            />
+
+                            <div className="min-w-0">
+                              <span className="text-sm sm:text-base font-extrabold text-slate-900 leading-snug block">
+                                {item.name}
+                              </span>
+                              {(item.orderedByName || item.cookedByName) && (
+                                <span className="text-[11px] font-semibold text-slate-500 block mt-0.5">
+                                  {item.orderedByName ? `Gọi món: ${item.orderedByName}` : ''}
+                                  {item.orderedByName && item.cookedByName ? ' • ' : ''}
+                                  {item.cookedByName ? `Bếp: ${item.cookedByName}` : ''}
+                                </span>
+                              )}
+                            </div>
                           </div>
 
-                          <span className="text-xs sm:text-sm font-extrabold text-slate-800 shrink-0">
-                            x{item.quantity}
-                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-sm sm:text-base font-extrabold text-slate-800">
+                              x{item.quantity}
+                            </span>
+
+                            {item.status === DISH_STATUS.PENDING && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  cancelDish(ticket.orderId, item.id);
+                                }}
+                                title="Hủy món này"
+                                className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                              >
+                                <X className="w-3.5 h-3.5 shrink-0" />
+                                <span>Hủy</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
 
                         {/* Ghi chú đặc biệt nổi bật (FR-K01) */}
                         {item.note && (
-                          <div className="ml-6 px-2.5 py-1 bg-[#FFF3E6] text-orange-800 text-[11px] font-bold flex items-center gap-1">
-                            <MessageSquareText className="w-3 h-3 text-orange-500 shrink-0" />
+                          <div className="ml-8 sm:ml-9 px-3 py-1.5 bg-[#FFF3E6] text-orange-800 text-xs sm:text-sm font-bold flex items-center gap-1.5">
+                            <MessageSquareText className="w-3.5 h-3.5 text-orange-500 shrink-0" />
                             <span>{item.note}</span>
                           </div>
                         )}
@@ -368,14 +377,14 @@ export default function KitchenPage() {
               </div>
 
               {/* Chân thẻ: Thời điểm nhận đơn */}
-              <div className="bg-slate-50 px-2.5 py-2 flex items-center justify-between gap-1.5 text-[11px] font-semibold text-slate-600">
-                <div className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <div className="bg-slate-50 px-4 py-3 flex items-center justify-between gap-2 text-xs sm:text-sm font-semibold text-slate-600">
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-slate-500 shrink-0" />
                   <span>Nhận lúc: {ticket.receivedAt}</span>
                 </div>
 
                 {statusType !== DISH_STATUS.DONE && (
-                  <span className="text-[10px] font-bold text-orange-600">
+                  <span className="text-xs font-bold text-orange-600">
                     {statusType === DISH_STATUS.PENDING
                       ? 'Chạm → Nấu'
                       : 'Chạm → Xong'}

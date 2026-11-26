@@ -45,6 +45,9 @@ public class RestaurantOrder {
     @Column(name = "submitted_at")
     private Instant submittedAt;
 
+    @Column(name = "created_by_name", length = 120)
+    private String createdByName;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("createdAt ASC")
     private List<OrderItem> items = new ArrayList<>();
@@ -83,6 +86,14 @@ public class RestaurantOrder {
 
     public Instant getSubmittedAt() {
         return submittedAt;
+    }
+
+    public String getCreatedByName() {
+        return createdByName;
+    }
+
+    public void setCreatedByName(String createdByName) {
+        this.createdByName = createdByName;
     }
 
     public List<OrderItem> getItems() {

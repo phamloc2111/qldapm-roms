@@ -1,5 +1,6 @@
 package com.roms.payment;
 
+import com.roms.auth.AccountService;
 import com.roms.order.OrderItem;
 import com.roms.order.OrderItemStatus;
 import com.roms.order.OrderService;
@@ -23,12 +24,14 @@ public class PaymentService {
     private final OrderService orderService;
     private final InvoiceRepository invoiceRepository;
     private final PaymentRepository paymentRepository;
+    private final AccountService accountService;
 
     public PaymentService(OrderService orderService, InvoiceRepository invoiceRepository,
-                          PaymentRepository paymentRepository) {
+                          PaymentRepository paymentRepository, AccountService accountService) {
         this.orderService = orderService;
         this.invoiceRepository = invoiceRepository;
         this.paymentRepository = paymentRepository;
+        this.accountService = accountService;
     }
 
     @Transactional(readOnly = true)
@@ -46,13 +49,14 @@ public class PaymentService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Order đã được thanh toán");
         }
 
+        String cashierName = accountService.getCurrentActorDisplayName();
         BillResponse bill = calculateBill(order, discountVnd, null);
         Invoice invoice = invoiceRepository.save(new Invoice(order, bill.subtotalVnd(), bill.discountVnd(),
-                bill.vatVnd(), bill.totalVnd()));
+                bill.vatVnd(), bill.totalVnd(), cashierName));
         Payment payment = paymentRepository.save(new Payment(invoice, bill.totalVnd(), method));
         orderService.markOrderPaid(order);
         return new PaymentResponse(invoice.getId(), payment.getId(), orderId, payment.getAmountVnd(),
-                payment.getMethod(), payment.getPaidAt());
+                payment.getMethod(), payment.getPaidAt(), cashierName);
     }
 
     private BillResponse calculateBill(RestaurantOrder order, long discountVnd, UUID invoiceId) {
@@ -83,5 +87,5 @@ public class PaymentService {
                                long subtotalVnd, long discountVnd, long vatVnd, long totalVnd) { }
 
     public record PaymentResponse(UUID invoiceId, UUID paymentId, UUID orderId, long amountVnd,
-                                  PaymentMethod method, java.time.Instant paidAt) { }
+                                  PaymentMethod method, java.time.Instant paidAt, String cashierName) { }
 }
